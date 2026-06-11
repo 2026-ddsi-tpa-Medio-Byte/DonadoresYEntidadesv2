@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EntidadesRepository {
-  List<EntidadBenefica> findAll();
+  Optional<EntidadBenefica> findById(String id);
+  EntidadBenefica save(EntidadBenefica entidadBenefica);
   EntidadBenefica removeById(String id);
+  List<EntidadBenefica> findAll();
 }

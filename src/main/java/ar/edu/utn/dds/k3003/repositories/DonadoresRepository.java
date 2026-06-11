@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DonadoresRepository {
-  List<Donador> findAll();
+  Optional<Donador> findById(String id);
+  Donador save(Donador donador);
   Donador removeById(String id);
+  List<Donador> findAll();
 }
