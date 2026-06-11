@@ -16,16 +16,7 @@ import java.time.LocalDate;
 public class CambioEstadoDonador {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    
-    private LocalDate fecha;
-    
-    @Enumerated(EnumType.STRING)
-    private EstadoDonadorEnum estado;
-    
-    private String motivo;
-
+    private String id;
     public CambioEstadoDonador(String id, LocalDate fecha, EstadoDonadorEnum estado, String motivo) {
         // Constructor para compatibilidad con código existente que pasa id como String
         // El id será autogenerado por la BD

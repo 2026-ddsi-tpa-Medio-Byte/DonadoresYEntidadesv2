@@ -12,5 +12,5 @@ public interface DonadoresRepository {
 
   List<Donador> findAll();
 
-  Donador deleteById(String id);
+  Donador removeById(String id);
 }

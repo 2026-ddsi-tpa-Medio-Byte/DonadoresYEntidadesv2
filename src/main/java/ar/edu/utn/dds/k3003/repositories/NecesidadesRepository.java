@@ -7,6 +7,6 @@ import java.util.Optional;
 public interface NecesidadesRepository {
     NecesidadMaterial save(NecesidadMaterial necesidadMaterial);
     Optional<NecesidadMaterial> findById(String id);
-    void deleteById(String id);
+    NecesidadMaterial removeById(String id);
     List<NecesidadMaterial> findAll();
 }

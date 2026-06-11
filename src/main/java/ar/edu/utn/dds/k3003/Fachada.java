@@ -182,7 +182,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val necesidad = necesidadOptional.get();
     necesidad.registrarSatisfaccion(cantidad);
 
-    this.necesidadesRepository.deleteById(necesidadID);
+    this.necesidadesRepository.removeById(necesidadID);
     this.necesidadesRepository.save(necesidad);
 
     return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);

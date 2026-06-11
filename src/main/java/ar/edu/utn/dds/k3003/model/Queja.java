@@ -15,8 +15,7 @@ import java.time.LocalDate;
 public class Queja {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String id;
     private String donacionID;
     private String donadorID;
     

@@ -6,4 +6,11 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface NecesidadesJpaRepository extends JpaRepository<NecesidadMaterial, String>, NecesidadesRepository {
+  @Override
+  default NecesidadMaterial removeById(String id) {
+    NecesidadMaterial n = findById(id)
+        .orElseThrow(() -> new RuntimeException("No existe una necesidad con ese ID"));
+    delete(n);
+    return n;
+  }
 }
