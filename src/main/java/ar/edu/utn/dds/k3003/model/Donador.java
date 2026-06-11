@@ -1,13 +1,19 @@
 package ar.edu.utn.dds.k3003.model;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.EstadoDonadorEnum;
+import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+@Entity
+@Table(name = "donadores")
+@NoArgsConstructor
 public class Donador {
 
+  @Id
   private String id;
   private String nombre;
   private String apellido;
@@ -15,9 +21,17 @@ public class Donador {
   private String email;
   private String nroDocumento;
   private String domicilio;
+  
+  @Enumerated(EnumType.STRING)
   private EstadoDonadorEnum estado;
+  
+  @Column
   private String categoria;
+  
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
   private List<Queja> quejas;
+  
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
   private List<CambioEstadoDonador> cambiosEstado;
 
   public Donador(

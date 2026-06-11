@@ -15,28 +15,33 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 public class Fachada implements FachadaDonadoresYEntidades {
 
-  private DonadoresRepository donadoresRepository;
-  private EntidadesRepository entidadesRepository;
-  private NecesidadesRepository necesidadesRepository;
+  private final DonadoresRepository donadoresRepository;
+  private final EntidadesRepository entidadesRepository;
+  private final NecesidadesRepository necesidadesRepository;
   private FachadaIncentivos fachadaIncentivos;
-  private DonadoresYEntidadesDataMapper donadoresYEntidadesDataMapper =
+  private final DonadoresYEntidadesDataMapper donadoresYEntidadesDataMapper =
           new DonadoresYEntidadesDataMapper();
 
   private Integer ultimoIdDonador = 0;
   private Integer ultimoIdEntidad = 0;
   private Integer ultimoIdNecesidad = 0;
   private Integer ultimoIdQueja = 0;
-  private List<Queja> quejas = new ArrayList<>();
+  private final List<Queja> quejas = new ArrayList<>();
 
-  public Fachada() {
-    this.donadoresRepository = new InMemoryDonadoresRepo();
-    this.entidadesRepository = new InMemoryEntidadesRepo();
-    this.necesidadesRepository = new InMemoryNecesidadesRepo();
+  @Autowired
+  public Fachada(
+          DonadoresRepository donadoresRepository,
+          EntidadesRepository entidadesRepository,
+          NecesidadesRepository necesidadesRepository) {
+    this.donadoresRepository = donadoresRepository;
+    this.entidadesRepository = entidadesRepository;
+    this.necesidadesRepository = necesidadesRepository;
   }
 
   @Override

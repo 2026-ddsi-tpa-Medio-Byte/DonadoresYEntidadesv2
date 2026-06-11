@@ -3,11 +3,17 @@ package ar.edu.utn.dds.k3003.model;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMaterialEnum;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
 
 @Setter
 @Getter
+@Entity
+@Table(name = "necesidades_materiales")
+@NoArgsConstructor
 public class NecesidadMaterial {
 
+    @Id
     private String id;
     private String entidadID;
     private Integer nivelDeUrgencia;
@@ -15,6 +21,8 @@ public class NecesidadMaterial {
     private Integer cantidadObjetivo;
     private String productoSolicitadoID;
     private Integer cantidadCubierta;
+    
+    @Enumerated(EnumType.STRING)
     private TipoNecesidadMaterialEnum tipo;
 
     public NecesidadMaterial(
