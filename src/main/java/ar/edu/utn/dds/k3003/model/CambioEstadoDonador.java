@@ -14,7 +14,8 @@ import java.time.LocalDate;
 public class CambioEstadoDonador {
 
     @Id
-    private String id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
     
     @Column
     private LocalDate fecha;
@@ -27,8 +28,7 @@ public class CambioEstadoDonador {
 
     public CambioEstadoDonador() {}
 
-    public CambioEstadoDonador(String id, LocalDate fecha, EstadoDonadorEnum estado, String motivo) {
-        this.id = id;
+    public CambioEstadoDonador( LocalDate fecha, EstadoDonadorEnum estado, String motivo) {
         this.fecha = fecha;
         this.estado = estado;
         this.motivo = motivo;

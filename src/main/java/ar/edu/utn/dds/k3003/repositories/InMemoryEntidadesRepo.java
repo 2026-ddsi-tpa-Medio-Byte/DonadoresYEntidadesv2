@@ -9,12 +9,14 @@ public class InMemoryEntidadesRepo implements EntidadesRepository {
 
     private final List<EntidadBenefica> entidades = new ArrayList<>();
 
+    @Override
     public EntidadBenefica save(EntidadBenefica entidadBenefica) {
         this.entidades.removeIf(entidad -> entidad.getId().equals(entidadBenefica.getId()));
         this.entidades.add(entidadBenefica);
         return entidadBenefica;
     }
 
+    @Override
     public Optional<EntidadBenefica> findById(String id) {
         return this.entidades.stream()
                 .filter(entidad -> entidad.getId().equals(id))

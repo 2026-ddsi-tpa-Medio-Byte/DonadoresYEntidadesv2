@@ -24,11 +24,10 @@ public class Queja {
     private String descripcion;
 
     public Queja(String id, String donacionID, String donadorID, LocalDate fecha, String descripcion) {
-        // Constructor para compatibilidad con código existente que pasa id como String
-        // El id será autogenerado por la BD
-        this.donacionID = donacionID;
-        this.donadorID = donadorID;
-        this.fecha = fecha;
-        this.descripcion = descripcion;
-    }
+    this.id = id;          // ← AGREGAR ESTA LÍNEA
+    this.donacionID = donacionID;
+    this.donadorID = donadorID;
+    this.fecha = fecha;
+    this.descripcion = descripcion;
+}
 }
