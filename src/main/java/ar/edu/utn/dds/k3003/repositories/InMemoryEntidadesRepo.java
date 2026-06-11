@@ -9,14 +9,12 @@ public class InMemoryEntidadesRepo implements EntidadesRepository {
 
     private final List<EntidadBenefica> entidades = new ArrayList<>();
 
-    @Override
     public EntidadBenefica save(EntidadBenefica entidadBenefica) {
-        this.deleteById(entidadBenefica.getId());
+        this.entidades.removeIf(entidad -> entidad.getId().equals(entidadBenefica.getId()));
         this.entidades.add(entidadBenefica);
         return entidadBenefica;
     }
 
-    @Override
     public Optional<EntidadBenefica> findById(String id) {
         return this.entidades.stream()
                 .filter(entidad -> entidad.getId().equals(id))
@@ -24,8 +22,13 @@ public class InMemoryEntidadesRepo implements EntidadesRepository {
     }
 
     @Override
-    public void deleteById(String id) {
-        this.entidades.removeIf(entidad -> entidad.getId().equals(id));
+    public EntidadBenefica removeById(String id) {
+        Optional<EntidadBenefica> entidad = this.findById(id);
+        if (entidad.isEmpty()) {
+            throw new RuntimeException("No existe una entidad con ese ID");
+        }
+        this.entidades.remove(entidad.get());
+        return entidad.get();
     }
 
     @Override

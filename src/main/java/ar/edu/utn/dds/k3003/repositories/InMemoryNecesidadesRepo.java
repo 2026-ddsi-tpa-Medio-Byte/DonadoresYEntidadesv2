@@ -9,14 +9,12 @@ public class InMemoryNecesidadesRepo implements NecesidadesRepository {
 
     private final List<NecesidadMaterial> necesidades = new ArrayList<>();
 
-    @Override
     public NecesidadMaterial save(NecesidadMaterial necesidadMaterial) {
-        this.deleteById(necesidadMaterial.getId());
+        this.necesidades.removeIf(necesidad -> necesidad.getId().equals(necesidadMaterial.getId()));
         this.necesidades.add(necesidadMaterial);
         return necesidadMaterial;
     }
 
-    @Override
     public Optional<NecesidadMaterial> findById(String id) {
         return this.necesidades.stream()
                 .filter(necesidad -> necesidad.getId().equals(id))
@@ -24,8 +22,13 @@ public class InMemoryNecesidadesRepo implements NecesidadesRepository {
     }
 
     @Override
-    public void deleteById(String id) {
-        this.necesidades.removeIf(necesidad -> necesidad.getId().equals(id));
+    public NecesidadMaterial removeById(String id) {
+        Optional<NecesidadMaterial> necesidad = this.findById(id);
+        if (necesidad.isEmpty()) {
+            throw new RuntimeException("No existe una necesidad con ese ID");
+        }
+        this.necesidades.remove(necesidad.get());
+        return necesidad.get();
     }
 
     @Override

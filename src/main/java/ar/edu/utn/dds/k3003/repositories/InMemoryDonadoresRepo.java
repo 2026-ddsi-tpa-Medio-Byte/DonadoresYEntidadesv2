@@ -28,7 +28,7 @@ public class InMemoryDonadoresRepo implements DonadoresRepository {
   }
 
   @Override
-  public Donador deleteById(String id) {
+  public Donador removeById(String id) {
     val donador = this.findById(id);
     if (donador.isEmpty()) {
       throw new RuntimeException("No existe un donador con ese ID");
