@@ -9,9 +9,11 @@ public interface DonadoresJpaRepository extends JpaRepository<Donador, String>, 
 
   @Override
   default Donador removeById(String id) {
-    Donador d = findById(id)
-        .orElseThrow(() -> new RuntimeException("No existe un donador con ese ID"));
-    delete(d);
-    return d;
+    if (!existsById(id)) {
+      throw new RuntimeException("No existe un donador con ese ID");
+    }
+    Donador donador = getReferenceById(id);
+    delete(donador);
+    return donador;
   }
 }

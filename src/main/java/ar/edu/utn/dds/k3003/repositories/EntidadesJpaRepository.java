@@ -9,9 +9,11 @@ public interface EntidadesJpaRepository extends JpaRepository<EntidadBenefica, S
 
   @Override
   default EntidadBenefica removeById(String id) {
-    EntidadBenefica e = findById(id)
-        .orElseThrow(() -> new RuntimeException("No existe una entidad con ese ID"));
-    delete(e);
-    return e;
+    if (!existsById(id)) {
+      throw new RuntimeException("No existe una entidad con ese ID");
+    }
+    EntidadBenefica entidad = getReferenceById(id);
+    delete(entidad);
+    return entidad;
   }
 }

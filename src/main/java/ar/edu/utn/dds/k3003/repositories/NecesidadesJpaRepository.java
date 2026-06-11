@@ -9,8 +9,10 @@ public interface NecesidadesJpaRepository extends JpaRepository<NecesidadMateria
 
   @Override
   default NecesidadMaterial removeById(String id) {
-    NecesidadMaterial n = findById(id)
-        .orElseThrow(() -> new RuntimeException("No existe una necesidad con ese ID"));
+    if (!existsById(id)) {
+      throw new RuntimeException("No existe una necesidad con ese ID");
+    }
+    NecesidadMaterial n = getReferenceById(id);
     delete(n);
     return n;
   }
