@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: donadoresyentidades
+    runtime: docker
+    plan: free
+    autoDeploy: false
+    buildCommand: "docker build -t donadoresyentidades ."
+    startCommand: "java -jar /app/app.jar"
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USER
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      - key: DATADOG_API_KEY
+        sync: false
+      - key: APP_ENV
+        value: production
+      - key: DONACIONES_URL
+        sync: false
+      - key: INCENTIVOS_URL
+        sync: false

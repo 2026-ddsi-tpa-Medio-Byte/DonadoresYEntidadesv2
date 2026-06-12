@@ -21,41 +21,34 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Tag(name = "Donadores", description = "API de gestión de donadores")
-public class DonadorController {
+@Tag(name = "quejas", description = "API de gestión de quejas")
+public class QuejaController {
 
   private final Fachada fachada;
 
-  public DonadorController(Fachada fachada) {
+  public QuejaController(Fachada fachada) {
     this.fachada = fachada;
   }
 
-  @Operation(summary = "Agregar un nuevo donador")
-  @PostMapping("/donadores")
-  public ResponseEntity<DonadorDTO> agregarDonador(@RequestBody DonadorDTO donadorDTO) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(fachada.agregarDonador(donadorDTO));
+  @Operation(summary = "Agregar una queja Nueva")
+  @PostMapping("/quejas")
+  public ResponseEntity<QuejaDTO> agregarUnaQueja(@RequestBody QuejaDTO quejaDTO) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(fachada.agregarQueja(QuejaDTO));
   }
 
-  @Operation(summary = "Buscar donadores por donador y fecha")
-  @GetMapping("/donadores")
-  public ResponseEntity<List<DonadorDTO>> buscarDonadores() {
+  @Operation(summary = "Buscar quejas")
+  @GetMapping("/quejas")
+  public ResponseEntity<List<QuejaDTO>> buscarQuejas() {
     return ResponseEntity.ok(
-        fachada.buscarDonadores());
+        fachada.buscarQuejas());
   }
 
-  @Operation(summary = "Buscar donador por ID")
-  @GetMapping("/donadores/{id}")
-  public ResponseEntity<DonadorDTO> buscarDonadorPorID(@PathVariable String id) {
-    return ResponseEntity.ok(fachada.buscarDonadorPorID(id));
+  @Operation(summary = "Buscar queja por ID")
+  @GetMapping("/quejas/{id}")
+  public ResponseEntity<QuejaDTO> buscarQuejaPorID(@PathVariable String id) {
+    return ResponseEntity.ok(fachada.buscarQuejaPorID(id));
   }
   
-  @Operation(summary = "Agregar queja en un donador")
-  @PostMapping("/donador/{id}/queja")
-  public ResponseEntity<DonadorDTO> agregarUnaQueja(@RequestBody QuejaDTO quejaDTO) {
-    return ResponseEntity.ok(fachada.agregarQueja(QuejaDTO quejaDTO);
-  }
-
-
+  
                            
-
   }

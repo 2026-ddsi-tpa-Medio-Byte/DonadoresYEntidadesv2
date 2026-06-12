@@ -1,5 +1,6 @@
 package ar.edu.utn.dds.k3003.catedra.fachadas;
 
+
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.InsigniaDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
 import java.util.List;
@@ -25,4 +26,5 @@ public interface FachadaIncentivos {
   void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones);
 
   void setFachadaDonadoresYEntidades(FachadaDonadoresYEntidades fachadaDonadoresYEntidades);
+
 }

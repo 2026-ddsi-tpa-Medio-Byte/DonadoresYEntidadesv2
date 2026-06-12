@@ -21,41 +21,34 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@Tag(name = "Donadores", description = "API de gestión de donadores")
-public class DonadorController {
+@Tag(name = "necesidades", description = "API de gestión de necesidades")
+public class NecesidadMaterialController {
 
   private final Fachada fachada;
 
-  public DonadorController(Fachada fachada) {
+  public NecesidadMaterialController(Fachada fachada) {
     this.fachada = fachada;
   }
 
-  @Operation(summary = "Agregar un nuevo donador")
-  @PostMapping("/donadores")
-  public ResponseEntity<DonadorDTO> agregarDonador(@RequestBody DonadorDTO donadorDTO) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(fachada.agregarDonador(donadorDTO));
+  @Operation(summary = "Agregar una necesidad Nueva")
+  @PostMapping("/necesidades")
+  public ResponseEntity<NecesidadMaterialDTO> agregarUnaNecesidad(@RequestBody NecesidadMaterialDTO necesidadMaterialDTO) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(fachada.registrarNecesidad(necesidadMaterialDTO));
   }
 
-  @Operation(summary = "Buscar donadores por donador y fecha")
-  @GetMapping("/donadores")
-  public ResponseEntity<List<DonadorDTO>> buscarDonadores() {
+  @Operation(summary = "Buscar necesidades")
+  @GetMapping("/necesidades")
+  public ResponseEntity<List<NecesidadMaterialDTO>> buscarNecesidades() {
     return ResponseEntity.ok(
-        fachada.buscarDonadores());
+        fachada.buscarNecesidades());
   }
 
-  @Operation(summary = "Buscar donador por ID")
-  @GetMapping("/donadores/{id}")
-  public ResponseEntity<DonadorDTO> buscarDonadorPorID(@PathVariable String id) {
-    return ResponseEntity.ok(fachada.buscarDonadorPorID(id));
+  @Operation(summary = "Buscar necesidad por ID")
+  @GetMapping("/necesidades/{id}")
+  public ResponseEntity<NecesidadMaterialDTO> buscarNecesidadPorID(@PathVariable String id) {
+    return ResponseEntity.ok(fachada.buscarNecesidadPorID(id));
   }
   
-  @Operation(summary = "Agregar queja en un donador")
-  @PostMapping("/donador/{id}/queja")
-  public ResponseEntity<DonadorDTO> agregarUnaQueja(@RequestBody QuejaDTO quejaDTO) {
-    return ResponseEntity.ok(fachada.agregarQueja(QuejaDTO quejaDTO);
-  }
-
-
+  
                            
-
-  }
+}

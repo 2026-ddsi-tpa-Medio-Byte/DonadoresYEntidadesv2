@@ -1,9 +1,11 @@
 package ar.edu.utn.dds.k3003.catedra.fachadas;
 
+
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.logistica.*;
 import java.util.List;
 import java.util.NoSuchElementException;
+
 
 public interface FachadaLogistica {
 
@@ -27,4 +29,5 @@ public interface FachadaLogistica {
   void setFachadaDonadoresYEntidades(FachadaDonadoresYEntidades fachadaDonadoresYEntidades);
 
   void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones);
-}
+ 
+  }
