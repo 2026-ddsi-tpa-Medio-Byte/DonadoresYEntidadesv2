@@ -1,15 +1,6 @@
 package ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades;
 
-
 import java.time.LocalDate;
 
-
-public class QuejaDTO{
-  
-    private String ID;
-    private String donacionID;
-    private String donadorID;
-    private LocalDate fecha;
-    private String descripcion;
-  
-  }
+public record QuejaDTO(
+    String id, String donacionID, String donadorID, LocalDate fecha, String descripcion) {}

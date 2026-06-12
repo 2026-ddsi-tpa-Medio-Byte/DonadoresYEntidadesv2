@@ -10,7 +10,7 @@ import ar.edu.utn.dds.k3003.model.Donador;
 import ar.edu.utn.dds.k3003.model.Queja;
 import ar.edu.utn.dds.k3003.repositories.*;
 import lombok.val;
-
+import ar.edu.utn.dds.k3003.MetricasService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -35,27 +35,34 @@ public class Fachada implements FachadaDonadoresYEntidades {
   private Integer ultimoIdNecesidad = 0;
   private Integer ultimoIdQueja = 0;
   private final List<Queja> quejas = new ArrayList<>();
+  private final MetricasService metricasService;
 
   /** Constructor sin argumentos para tests que usan new Fachada() o reflection. */
   public Fachada() {
     this.donadoresRepository = new InMemoryDonadoresRepo();
     this.entidadesRepository = new InMemoryEntidadesRepo();
     this.necesidadesRepository = new InMemoryNecesidadesRepo();
+    this.metricasService = new MetricasService(new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
   }
 
   @Autowired
   public Fachada(
           DonadoresRepository donadoresRepository,
           EntidadesRepository entidadesRepository,
-          NecesidadesRepository necesidadesRepository) {
+          NecesidadesRepository necesidadesRepository,
+          MetricasService metricasService) {
     this.donadoresRepository = donadoresRepository;
     this.entidadesRepository = entidadesRepository;
     this.necesidadesRepository = necesidadesRepository;
+    this.metricasService = metricasService;
   }
+
+  
 
   @Override
   public DonadorDTO agregarDonador(DonadorDTO donadorDTO) {
     if (donadorDTO == null) {
+      metricasService.incrementarDonadoresErrores();
       throw new RuntimeException("El donador no puede ser null");
     }
 
@@ -66,6 +73,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     }
 
     if (this.donadoresRepository.findById(id).isPresent()) {
+      metricasService.incrementarDonadoresErrores();
       throw new DonadorYaExistenteException("Ya existe un donador con ese ID");
     }
 
@@ -83,7 +91,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
     val donador = donadoresYEntidadesDataMapper.toDonador(dtoConId);
     val donadorGuardado = this.donadoresRepository.save(donador);
-
+    metricasService.incrementarDonadoresRegistrados();
     return donadoresYEntidadesDataMapper.toDonadorDTO(donadorGuardado);
   }
 
@@ -180,8 +188,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
   }
 
   @Override
-  public NecesidadMaterialDTO satisfacerNecesidad(String necesidadID, Integer cantidad)
-          throws NoSuchElementException {
+  public NecesidadMaterialDTO satisfacerNecesidad(String necesidadID, Integer cantidad)throws NoSuchElementException {
     val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
 
     if (necesidadOptional.isEmpty()) {
@@ -192,7 +199,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     necesidad.registrarSatisfaccion(cantidad);
 
     this.necesidadesRepository.save(necesidad);
-
+    metricasService.incrementarNecesidadesSatisfechas();
     return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);
   }
 
@@ -266,7 +273,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
     val entidad = donadoresYEntidadesDataMapper.toEntidadBenefica(dtoConId);
     val entidadGuardada = this.entidadesRepository.save(entidad);
-
+    metricasService.incrementarEntidadesRegistradas();
     return donadoresYEntidadesDataMapper.toEntidadBeneficaDTO(entidadGuardada);
   }
 
@@ -309,7 +316,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
     val necesidad = donadoresYEntidadesDataMapper.toNecesidadMaterial(dtoConId);
     val necesidadGuardada = this.necesidadesRepository.save(necesidad);
-
+    metricasService.incrementarNecesidadesRegistradas();
     return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidadGuardada);
   }
 
@@ -352,7 +359,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
       donador.agregarQueja(queja);
       this.donadoresRepository.save(donador);
     }
-
+    metricasService.incrementarQuejasRegistradas();
     return donadoresYEntidadesDataMapper.toQuejaDTO(queja);
   }
 

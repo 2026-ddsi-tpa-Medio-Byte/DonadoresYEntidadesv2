@@ -46,10 +46,10 @@ public class MetricasService {
         .register(registry);
   }
 
-  public void incrementarDonadoresRegistrados() { donadoresRegistrados.increment(); }
-  public void incrementarDonadoresErrores() { donadoresErrores.increment(); }
-  public void incrementarEntidadesRegistradas() { entidadesRegistradas.increment(); }
-  public void incrementarQuejasRegistradas() { quejasRegistradas.increment(); }
-  public void incrementarNecesidadesRegistradas() { necesidadesRegistradas.increment(); }
-  public void incrementarNecesidadesSatisfechas() { necesidadesSatisfechas.increment(); }
+  public void incrementarDonadoresRegistrados()    { donadoresRegistrados.increment(); }
+  public void incrementarDonadoresErrores()        { donadoresErrores.increment(); }
+  public void incrementarEntidadesRegistradas()    { entidadesRegistradas.increment(); }
+  public void incrementarQuejasRegistradas()       { quejasRegistradas.increment(); }
+  public void incrementarNecesidadesRegistradas()  { necesidadesRegistradas.increment(); }
+  public void incrementarNecesidadesSatisfechas()  { necesidadesSatisfechas.increment(); }
 }
