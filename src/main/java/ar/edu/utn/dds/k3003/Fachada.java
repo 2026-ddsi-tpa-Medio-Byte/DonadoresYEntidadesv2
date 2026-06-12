@@ -61,7 +61,8 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
   @Override
   public DonadorDTO agregarDonador(DonadorDTO donadorDTO) {
-    if (donadorDTO == null) {
+    if (donadorDTO.apellido() == null || donadorDTO.nombre() == null || donadorDTO.edad() == null || donadorDTO.email() == null
+            || donadorDTO.nroDocumento() == null || donadorDTO.domicilio() == null) {
       metricasService.incrementarDonadoresErrores();
       throw new RuntimeException("El donador no puede ser null");
     }
