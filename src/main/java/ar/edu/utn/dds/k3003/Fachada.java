@@ -24,6 +24,8 @@ public class Fachada implements FachadaDonadoresYEntidades {
   private DonadoresRepository donadoresRepository;
   private EntidadesRepository entidadesRepository;
   private NecesidadesRepository necesidadesRepository;
+
+  @Autowired(required = false)
   private FachadaIncentivos fachadaIncentivos;
   private final DonadoresYEntidadesDataMapper donadoresYEntidadesDataMapper =
           new DonadoresYEntidadesDataMapper();
