@@ -442,4 +442,49 @@ public class Fachada implements FachadaDonadoresYEntidades {
             .map(donadoresYEntidadesDataMapper::toEntidadBeneficaDTO)
             .toList();
   }
+
+  // ── Entrega 4: operaciones adicionales (consulta/edición/baja) usadas por el bot ──
+
+  public NecesidadMaterialDTO buscarNecesidadPorID(String necesidadID) {
+    val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
+    if (necesidadOptional.isEmpty()) {
+      throw new RuntimeException("No existe una necesidad con ese ID");
+    }
+    return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidadOptional.get());
+  }
+
+  public void eliminarNecesidad(String necesidadID) {
+    this.necesidadesRepository.removeById(necesidadID);
+  }
+
+  public NecesidadMaterialDTO modificarNecesidad(String necesidadID, NecesidadMaterialDTO dto) {
+    val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
+    if (necesidadOptional.isEmpty()) {
+      throw new RuntimeException("No existe una necesidad con ese ID");
+    }
+    val necesidad = necesidadOptional.get();
+    if (dto.nivelDeUrgencia() != null) necesidad.setNivelDeUrgencia(dto.nivelDeUrgencia());
+    if (dto.descripcion() != null) necesidad.setDescripcion(dto.descripcion());
+    if (dto.cantidadObjetivo() != null) necesidad.setCantidadObjetivo(dto.cantidadObjetivo());
+    if (dto.productoSolicitadoID() != null) {
+      necesidad.setProductoSolicitadoID(dto.productoSolicitadoID());
+    }
+    if (dto.tipo() != null) necesidad.setTipo(dto.tipo());
+    this.necesidadesRepository.save(necesidad);
+    return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);
+  }
+
+  public EntidadBeneficaDTO editarEntidad(String entidadID, EntidadBeneficaDTO dto) {
+    val entidadOptional = this.entidadesRepository.findById(entidadID);
+    if (entidadOptional.isEmpty()) {
+      throw new RuntimeException("No existe una entidad con ese ID");
+    }
+    val entidad = entidadOptional.get();
+    if (dto.razonSocial() != null) entidad.setRazonSocial(dto.razonSocial());
+    if (dto.domicilio() != null) entidad.setDomicilio(dto.domicilio());
+    if (dto.telefono() != null) entidad.setTelefono(dto.telefono());
+    if (dto.correo() != null) entidad.setCorreo(dto.correo());
+    this.entidadesRepository.save(entidad);
+    return donadoresYEntidadesDataMapper.toEntidadBeneficaDTO(entidad);
+  }
 }

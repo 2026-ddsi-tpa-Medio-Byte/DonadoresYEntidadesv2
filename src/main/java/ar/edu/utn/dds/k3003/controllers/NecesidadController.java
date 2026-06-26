@@ -63,4 +63,36 @@ public class NecesidadController {
         return ResponseEntity.ok(
                 fachada.satisfacerNecesidad(necesidadID, request.cantidad()));
     }
+
+    @Operation(summary = "Buscar necesidad por ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Necesidad encontrada"),
+            @ApiResponse(responseCode = "404", description = "Necesidad no encontrada")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<NecesidadMaterialDTO> buscarNecesidadPorID(@PathVariable String id) {
+        return ResponseEntity.ok(fachada.buscarNecesidadPorID(id));
+    }
+
+    @Operation(summary = "Modificar necesidad por ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Necesidad actualizada"),
+            @ApiResponse(responseCode = "404", description = "Necesidad no encontrada")
+    })
+    @PutMapping("/{id}")
+    public ResponseEntity<NecesidadMaterialDTO> modificarNecesidad(
+            @PathVariable String id, @RequestBody NecesidadMaterialDTO necesidadMaterialDTO) {
+        return ResponseEntity.ok(fachada.modificarNecesidad(id, necesidadMaterialDTO));
+    }
+
+    @Operation(summary = "Borrar necesidad por ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Necesidad eliminada"),
+            @ApiResponse(responseCode = "404", description = "Necesidad no encontrada")
+    })
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> borrarNecesidad(@PathVariable String id) {
+        fachada.eliminarNecesidad(id);
+        return ResponseEntity.noContent().build();
+    }
 }
