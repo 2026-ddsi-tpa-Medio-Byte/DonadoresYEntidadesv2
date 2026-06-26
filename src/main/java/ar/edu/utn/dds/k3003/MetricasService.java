@@ -13,6 +13,7 @@ public class MetricasService {
   private final Counter quejasRegistradas;
   private final Counter necesidadesRegistradas;
   private final Counter necesidadesSatisfechas;
+  private final Counter necesidadesErrores;
 
   public MetricasService(MeterRegistry registry) {
     this.donadoresRegistrados = Counter.builder("donadores.registrados")
@@ -44,6 +45,11 @@ public class MetricasService {
         .description("Necesidades materiales satisfechas")
         .tag("modulo", "donadores-y-entidades")
         .register(registry);
+
+    this.necesidadesErrores = Counter.builder("entidades.necesidades.errores")
+        .description("Necesidades rechazadas (p. ej. producto inexistente)")
+        .tag("modulo", "donadores-y-entidades")
+        .register(registry);
   }
 
   public void incrementarDonadoresRegistrados()    { donadoresRegistrados.increment(); }
@@ -52,4 +58,5 @@ public class MetricasService {
   public void incrementarQuejasRegistradas()       { quejasRegistradas.increment(); }
   public void incrementarNecesidadesRegistradas()  { necesidadesRegistradas.increment(); }
   public void incrementarNecesidadesSatisfechas()  { necesidadesSatisfechas.increment(); }
+  public void incrementarNecesidadesErrores()      { necesidadesErrores.increment(); }
 }

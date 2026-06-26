@@ -2,6 +2,7 @@ package ar.edu.utn.dds.k3003;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.*;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
+import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
 import ar.edu.utn.dds.k3003.exceptions.DonadorNoEncontradoException;
@@ -25,8 +26,15 @@ public class Fachada implements FachadaDonadoresYEntidades {
   private EntidadesRepository entidadesRepository;
   private NecesidadesRepository necesidadesRepository;
 
+  private static final org.slf4j.Logger log =
+          org.slf4j.LoggerFactory.getLogger(Fachada.class);
+
   @Autowired(required = false)
   private FachadaIncentivos fachadaIncentivos;
+
+  @Autowired(required = false)
+  private FachadaDonaciones fachadaDonaciones;
+
   private final DonadoresYEntidadesDataMapper donadoresYEntidadesDataMapper =
           new DonadoresYEntidadesDataMapper();
 
@@ -163,6 +171,11 @@ public class Fachada implements FachadaDonadoresYEntidades {
     this.fachadaIncentivos = fachadaIncentivos;
   }
 
+  /** Inyección de la fachada de Donaciones (para validar productos en Entrega 4). */
+  public void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones) {
+    this.fachadaDonaciones = fachadaDonaciones;
+  }
+
   @Override
   public Boolean puedeDonar(String donadorID) throws NoSuchElementException {
     val donadorOptional = this.donadoresRepository.findById(donadorID);
@@ -293,6 +306,28 @@ public class Fachada implements FachadaDonadoresYEntidades {
   public NecesidadMaterialDTO registrarNecesidad(NecesidadMaterialDTO necesidadMaterialDTO) {
     if (necesidadMaterialDTO == null) {
       throw new RuntimeException("La necesidad no puede ser null");
+    }
+
+    // Entrega 4: corroborar con Donaciones que el producto solicitado exista.
+    // Guardado por null: con el constructor sin-args (tests de cátedra) no se valida.
+    if (this.fachadaDonaciones != null && necesidadMaterialDTO.productoSolicitadoID() != null) {
+      try {
+        log.info(
+            "[Donadores -> Donaciones] Validando producto de necesidad (productoID={})",
+            necesidadMaterialDTO.productoSolicitadoID());
+        this.fachadaDonaciones.buscarProductoPorID(necesidadMaterialDTO.productoSolicitadoID());
+        log.info(
+            "[Donadores <- Donaciones] producto valido (productoID={})",
+            necesidadMaterialDTO.productoSolicitadoID());
+      } catch (Exception e) {
+        metricasService.incrementarNecesidadesErrores();
+        log.warn(
+            "[Donadores] Necesidad rechazada: producto inexistente en Donaciones (productoID={})",
+            necesidadMaterialDTO.productoSolicitadoID());
+        throw new RuntimeException(
+            "El producto solicitado no existe en Donaciones: "
+                + necesidadMaterialDTO.productoSolicitadoID());
+      }
     }
 
     String id = necesidadMaterialDTO.id();
