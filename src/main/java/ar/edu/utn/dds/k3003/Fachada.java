@@ -5,6 +5,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
+import ar.edu.utn.dds.k3003.clients.LogisticaStockClient;
 import ar.edu.utn.dds.k3003.exceptions.DonadorNoEncontradoException;
 import ar.edu.utn.dds.k3003.exceptions.DonadorYaExistenteException;
 import ar.edu.utn.dds.k3003.model.Donador;
@@ -34,6 +35,9 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
   @Autowired(required = false)
   private FachadaDonaciones fachadaDonaciones;
+
+  @Autowired(required = false)
+  private LogisticaStockClient logisticaStockClient;
 
   private final DonadoresYEntidadesDataMapper donadoresYEntidadesDataMapper =
           new DonadoresYEntidadesDataMapper();
@@ -174,6 +178,11 @@ public class Fachada implements FachadaDonadoresYEntidades {
   /** Inyección de la fachada de Donaciones (para validar productos en Entrega 4). */
   public void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones) {
     this.fachadaDonaciones = fachadaDonaciones;
+  }
+
+  /** Inyección del cliente de Logística (para consultar stock y asignar en Entrega 4). */
+  public void setLogisticaStockClient(LogisticaStockClient logisticaStockClient) {
+    this.logisticaStockClient = logisticaStockClient;
   }
 
   @Override
@@ -353,6 +362,29 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val necesidad = donadoresYEntidadesDataMapper.toNecesidadMaterial(dtoConId);
     val necesidadGuardada = this.necesidadesRepository.save(necesidad);
     metricasService.incrementarNecesidadesRegistradas();
+
+    // Entrega 4: consultar stock en Logística y, si hay, asignar al momento (origen = Donadores).
+    // Best-effort y guardado por null (no rompe la creación ni los tests de cátedra).
+    if (this.logisticaStockClient != null && necesidadGuardada.getProductoSolicitadoID() != null) {
+      int stock =
+          logisticaStockClient.consultarStockDisponible(necesidadGuardada.getProductoSolicitadoID());
+      int aAsignar = Math.min(stock, necesidadGuardada.cantidadFaltante());
+      if (aAsignar > 0) {
+        logisticaStockClient.solicitarAsignacion(
+            necesidadGuardada.getId(), necesidadGuardada.getProductoSolicitadoID(), aAsignar);
+        try {
+          necesidadGuardada.registrarSatisfaccion(aAsignar);
+          this.necesidadesRepository.save(necesidadGuardada);
+          metricasService.incrementarNecesidadesSatisfechas();
+        } catch (RuntimeException e) {
+          log.warn(
+              "[Donadores] No se pudo registrar satisfacción local de la necesidad {}: {}",
+              necesidadGuardada.getId(),
+              e.getMessage());
+        }
+      }
+    }
+
     return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidadGuardada);
   }
 

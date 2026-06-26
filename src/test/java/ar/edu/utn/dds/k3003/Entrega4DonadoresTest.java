@@ -9,6 +9,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donaciones.ProductoDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.TipoNecesidadMaterialEnum;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
+import ar.edu.utn.dds.k3003.clients.LogisticaStockClient;
 import java.util.NoSuchElementException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,10 +26,13 @@ class Entrega4DonadoresTest {
 
   @Mock private FachadaDonaciones fachadaDonaciones;
 
+  @Mock private LogisticaStockClient logisticaStockClient;
+
   @BeforeEach
   void setUp() {
     fachada = new Fachada();
     fachada.setFachadaDonaciones(fachadaDonaciones);
+    fachada.setLogisticaStockClient(logisticaStockClient);
   }
 
   @Test
@@ -71,5 +75,29 @@ class Entrega4DonadoresTest {
             TipoNecesidadMaterialEnum.EXTRAORDINARIA);
 
     assertThrows(RuntimeException.class, () -> fachada.registrarNecesidad(dto));
+  }
+
+  @Test
+  @DisplayName("Si Logística tiene stock, al crear la necesidad se solicita la asignación")
+  void asignaStockAlCrearNecesidad() {
+    when(fachadaDonaciones.buscarProductoPorID("producto1"))
+        .thenReturn(
+            new ProductoDTO("producto1", "Arroz", "Arroz blanco largo fino", "alimentos", "1"));
+    when(logisticaStockClient.consultarStockDisponible("producto1")).thenReturn(3);
+
+    NecesidadMaterialDTO dto =
+        new NecesidadMaterialDTO(
+            null,
+            "entidad1",
+            5,
+            "necesidad1",
+            5,
+            "producto1",
+            TipoNecesidadMaterialEnum.EXTRAORDINARIA);
+
+    NecesidadMaterialDTO retorno = fachada.registrarNecesidad(dto);
+
+    // objetivo 5, stock 3 → se solicita asignar 3
+    verify(logisticaStockClient).solicitarAsignacion(retorno.id(), "producto1", 3);
   }
 }
