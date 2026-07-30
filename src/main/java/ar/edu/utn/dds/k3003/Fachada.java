@@ -4,6 +4,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.*;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
+import ar.edu.utn.dds.k3003.controllers.responses.NecesidadResponse;
 import ar.edu.utn.dds.k3003.exceptions.DonadorNoEncontradoException;
 import ar.edu.utn.dds.k3003.exceptions.DonadorYaExistenteException;
 import ar.edu.utn.dds.k3003.model.Donador;
@@ -156,6 +157,28 @@ public class Fachada implements FachadaDonadoresYEntidades {
             .filter(necesidad -> !necesidad.estaSatisfecha())
             .map(donadoresYEntidadesDataMapper::toNecesidadMaterialDTO)
             .toList();
+  }
+
+  /**
+   * Igual que {@link #obtenerNecesidadesInsatisfechasDe(String)} pero devolviendo la respuesta
+   * enriquecida con {@code cantidadActual}, que Logística necesita para el matchmaking.
+   */
+  public List<NecesidadResponse> obtenerNecesidadesInsatisfechasDetalladasDe(
+          String productoSolicitadoID) {
+    return this.necesidadesRepository.findAll().stream()
+            .filter(necesidad -> necesidad.getProductoSolicitadoID().equals(productoSolicitadoID))
+            .filter(necesidad -> !necesidad.estaSatisfecha())
+            .map(donadoresYEntidadesDataMapper::toNecesidadResponse)
+            .toList();
+  }
+
+  /** Busca una necesidad por ID devolviendo la respuesta con {@code cantidadActual}. */
+  public NecesidadResponse buscarNecesidadPorID(String necesidadID) {
+    val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
+    if (necesidadOptional.isEmpty()) {
+      throw new NoSuchElementException("No existe una necesidad con ese ID");
+    }
+    return donadoresYEntidadesDataMapper.toNecesidadResponse(necesidadOptional.get());
   }
 
   @Override

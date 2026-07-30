@@ -1,6 +1,7 @@
 package ar.edu.utn.dds.k3003.repositories;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.*;
+import ar.edu.utn.dds.k3003.controllers.responses.NecesidadResponse;
 import ar.edu.utn.dds.k3003.model.Donador;
 import ar.edu.utn.dds.k3003.model.EntidadBenefica;
 import ar.edu.utn.dds.k3003.model.NecesidadMaterial;
@@ -96,6 +97,21 @@ public class DonadoresYEntidadesDataMapper {
             necesidad.getNivelDeUrgencia(),
             necesidad.getDescripcion(),
             necesidad.getCantidadObjetivo(),
+            necesidad.getProductoSolicitadoID(),
+            necesidad.getTipo());
+  }
+
+  /**
+   * Respuesta enriquecida con la cantidad ya cubierta, necesaria para el matchmaking de Logística.
+   */
+  public NecesidadResponse toNecesidadResponse(NecesidadMaterial necesidad) {
+    return new NecesidadResponse(
+            necesidad.getId(),
+            necesidad.getEntidadID(),
+            necesidad.getNivelDeUrgencia(),
+            necesidad.getDescripcion(),
+            necesidad.getCantidadObjetivo(),
+            necesidad.getCantidadCubierta() != null ? necesidad.getCantidadCubierta() : 0,
             necesidad.getProductoSolicitadoID(),
             necesidad.getTipo());
   }

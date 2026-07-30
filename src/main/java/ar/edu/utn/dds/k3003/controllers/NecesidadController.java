@@ -3,6 +3,7 @@ package ar.edu.utn.dds.k3003.controllers;
 import ar.edu.utn.dds.k3003.Fachada;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDTO;
 import ar.edu.utn.dds.k3003.controllers.requests.SatisfaccionRequest;
+import ar.edu.utn.dds.k3003.controllers.responses.NecesidadResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -35,18 +36,30 @@ public class NecesidadController {
                 .body(fachada.registrarNecesidad(necesidadMaterialDTO));
     }
 
-    @Operation(summary = "Obtener necesidades insatisfechas por producto")
+    @Operation(summary = "Obtener necesidades insatisfechas por producto",
+            description = "Incluye cantidadActual (lo ya cubierto), que Logística usa para el matchmaking")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Lista de necesidades"),
             @ApiResponse(responseCode = "404", description = "Necesidades no encontradas")
     })
     @GetMapping
-    public ResponseEntity<List<NecesidadMaterialDTO>>
+    public ResponseEntity<List<NecesidadResponse>>
     obtenerNecesidadesInsatisfechasDeProducto(
             @RequestParam String productoID) {
 
         return ResponseEntity.ok(
-                fachada.obtenerNecesidadesInsatisfechasDe(productoID));
+                fachada.obtenerNecesidadesInsatisfechasDetalladasDe(productoID));
+    }
+
+    @Operation(summary = "Buscar necesidad por ID",
+            description = "Incluye cantidadActual (lo ya cubierto)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Necesidad encontrada"),
+            @ApiResponse(responseCode = "404", description = "Necesidad no encontrada")
+    })
+    @GetMapping("/{id}")
+    public ResponseEntity<NecesidadResponse> buscarNecesidadPorID(@PathVariable String id) {
+        return ResponseEntity.ok(fachada.buscarNecesidadPorID(id));
     }
 
     @Operation(summary = "Satisfacer una necesidad")
