@@ -52,4 +52,15 @@ public class EntidadController {
         EntidadBeneficaDTO entidad = fachada.buscarEntidadPorID(id);
         return ResponseEntity.ok(entidad);
     }
+
+    @Operation(summary = "Editar entidad benéfica")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Entidad actualizada"),
+            @ApiResponse(responseCode = "404", description = "Entidad no encontrada")
+    })
+    @PutMapping("/{id}")
+    public ResponseEntity<EntidadBeneficaDTO> putEntidad(
+            @PathVariable String id, @RequestBody EntidadBeneficaDTO entidadBeneficaDTO) {
+        return ResponseEntity.ok(fachada.editarEntidad(id, entidadBeneficaDTO));
+    }
 }

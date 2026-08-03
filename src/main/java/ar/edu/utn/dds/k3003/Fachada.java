@@ -2,8 +2,10 @@ package ar.edu.utn.dds.k3003;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.*;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
+import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
+import ar.edu.utn.dds.k3003.clients.LogisticaStockClient;
 import ar.edu.utn.dds.k3003.controllers.responses.NecesidadResponse;
 import ar.edu.utn.dds.k3003.exceptions.DonadorNoEncontradoException;
 import ar.edu.utn.dds.k3003.exceptions.DonadorYaExistenteException;
@@ -26,8 +28,18 @@ public class Fachada implements FachadaDonadoresYEntidades {
   private EntidadesRepository entidadesRepository;
   private NecesidadesRepository necesidadesRepository;
 
+  private static final org.slf4j.Logger log =
+          org.slf4j.LoggerFactory.getLogger(Fachada.class);
+
   @Autowired(required = false)
   private FachadaIncentivos fachadaIncentivos;
+
+  @Autowired(required = false)
+  private FachadaDonaciones fachadaDonaciones;
+
+  @Autowired(required = false)
+  private LogisticaStockClient logisticaStockClient;
+
   private final DonadoresYEntidadesDataMapper donadoresYEntidadesDataMapper =
           new DonadoresYEntidadesDataMapper();
 
@@ -186,6 +198,16 @@ public class Fachada implements FachadaDonadoresYEntidades {
     this.fachadaIncentivos = fachadaIncentivos;
   }
 
+  /** Inyección de la fachada de Donaciones (para validar productos en Entrega 4). */
+  public void setFachadaDonaciones(FachadaDonaciones fachadaDonaciones) {
+    this.fachadaDonaciones = fachadaDonaciones;
+  }
+
+  /** Inyección del cliente de Logística (para consultar stock y asignar en Entrega 4). */
+  public void setLogisticaStockClient(LogisticaStockClient logisticaStockClient) {
+    this.logisticaStockClient = logisticaStockClient;
+  }
+
   @Override
   public Boolean puedeDonar(String donadorID) throws NoSuchElementException {
     val donadorOptional = this.donadoresRepository.findById(donadorID);
@@ -318,6 +340,28 @@ public class Fachada implements FachadaDonadoresYEntidades {
       throw new RuntimeException("La necesidad no puede ser null");
     }
 
+    // Entrega 4: corroborar con Donaciones que el producto solicitado exista.
+    // Guardado por null: con el constructor sin-args (tests de cátedra) no se valida.
+    if (this.fachadaDonaciones != null && necesidadMaterialDTO.productoSolicitadoID() != null) {
+      try {
+        log.info(
+            "[Donadores -> Donaciones] Validando producto de necesidad (productoID={})",
+            necesidadMaterialDTO.productoSolicitadoID());
+        this.fachadaDonaciones.buscarProductoPorID(necesidadMaterialDTO.productoSolicitadoID());
+        log.info(
+            "[Donadores <- Donaciones] producto valido (productoID={})",
+            necesidadMaterialDTO.productoSolicitadoID());
+      } catch (Exception e) {
+        metricasService.incrementarNecesidadesErrores();
+        log.warn(
+            "[Donadores] Necesidad rechazada: producto inexistente en Donaciones (productoID={})",
+            necesidadMaterialDTO.productoSolicitadoID());
+        throw new RuntimeException(
+            "El producto solicitado no existe en Donaciones: "
+                + necesidadMaterialDTO.productoSolicitadoID());
+      }
+    }
+
     String id = necesidadMaterialDTO.id();
     if (id == null) {
       this.ultimoIdNecesidad++;
@@ -341,6 +385,29 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val necesidad = donadoresYEntidadesDataMapper.toNecesidadMaterial(dtoConId);
     val necesidadGuardada = this.necesidadesRepository.save(necesidad);
     metricasService.incrementarNecesidadesRegistradas();
+
+    // Entrega 4: consultar stock en Logística y, si hay, asignar al momento (origen = Donadores).
+    // Best-effort y guardado por null (no rompe la creación ni los tests de cátedra).
+    if (this.logisticaStockClient != null && necesidadGuardada.getProductoSolicitadoID() != null) {
+      int stock =
+          logisticaStockClient.consultarStockDisponible(necesidadGuardada.getProductoSolicitadoID());
+      int aAsignar = Math.min(stock, necesidadGuardada.cantidadFaltante());
+      if (aAsignar > 0) {
+        logisticaStockClient.solicitarAsignacion(
+            necesidadGuardada.getId(), necesidadGuardada.getProductoSolicitadoID(), aAsignar);
+        try {
+          necesidadGuardada.registrarSatisfaccion(aAsignar);
+          this.necesidadesRepository.save(necesidadGuardada);
+          metricasService.incrementarNecesidadesSatisfechas();
+        } catch (RuntimeException e) {
+          log.warn(
+              "[Donadores] No se pudo registrar satisfacción local de la necesidad {}: {}",
+              necesidadGuardada.getId(),
+              e.getMessage());
+        }
+      }
+    }
+
     return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidadGuardada);
   }
 
@@ -397,5 +464,44 @@ public class Fachada implements FachadaDonadoresYEntidades {
     return this.entidadesRepository.findAll().stream()
             .map(donadoresYEntidadesDataMapper::toEntidadBeneficaDTO)
             .toList();
+  }
+
+  // ── Entrega 4: operaciones adicionales (consulta/edición/baja) usadas por el bot ──
+  // Nota: buscarNecesidadPorID está definido más arriba y devuelve NecesidadResponse
+  // (con cantidadActual), que es lo que consume Logística para el matchmaking.
+
+  public void eliminarNecesidad(String necesidadID) {
+    this.necesidadesRepository.removeById(necesidadID);
+  }
+
+  public NecesidadMaterialDTO modificarNecesidad(String necesidadID, NecesidadMaterialDTO dto) {
+    val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
+    if (necesidadOptional.isEmpty()) {
+      throw new RuntimeException("No existe una necesidad con ese ID");
+    }
+    val necesidad = necesidadOptional.get();
+    if (dto.nivelDeUrgencia() != null) necesidad.setNivelDeUrgencia(dto.nivelDeUrgencia());
+    if (dto.descripcion() != null) necesidad.setDescripcion(dto.descripcion());
+    if (dto.cantidadObjetivo() != null) necesidad.setCantidadObjetivo(dto.cantidadObjetivo());
+    if (dto.productoSolicitadoID() != null) {
+      necesidad.setProductoSolicitadoID(dto.productoSolicitadoID());
+    }
+    if (dto.tipo() != null) necesidad.setTipo(dto.tipo());
+    this.necesidadesRepository.save(necesidad);
+    return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);
+  }
+
+  public EntidadBeneficaDTO editarEntidad(String entidadID, EntidadBeneficaDTO dto) {
+    val entidadOptional = this.entidadesRepository.findById(entidadID);
+    if (entidadOptional.isEmpty()) {
+      throw new RuntimeException("No existe una entidad con ese ID");
+    }
+    val entidad = entidadOptional.get();
+    if (dto.razonSocial() != null) entidad.setRazonSocial(dto.razonSocial());
+    if (dto.domicilio() != null) entidad.setDomicilio(dto.domicilio());
+    if (dto.telefono() != null) entidad.setTelefono(dto.telefono());
+    if (dto.correo() != null) entidad.setCorreo(dto.correo());
+    this.entidadesRepository.save(entidad);
+    return donadoresYEntidadesDataMapper.toEntidadBeneficaDTO(entidad);
   }
 }
