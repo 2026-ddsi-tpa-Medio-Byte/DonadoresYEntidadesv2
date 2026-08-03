@@ -43,11 +43,6 @@ public class Fachada implements FachadaDonadoresYEntidades {
   private final DonadoresYEntidadesDataMapper donadoresYEntidadesDataMapper =
           new DonadoresYEntidadesDataMapper();
 
-  private Integer ultimoIdDonador = 0;
-  private Integer ultimoIdEntidad = 0;
-  private Integer ultimoIdNecesidad = 0;
-  private Integer ultimoIdQueja = 0;
-  private final List<Queja> quejas = new ArrayList<>();
   private final MetricasService metricasService;
 
   /** Constructor sin argumentos para tests que usan new Fachada() o reflection. */
@@ -72,6 +67,52 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
   
 
+  // ── Generación de IDs ───────────────────────────────────────────────────────
+  // Los IDs se derivan del contenido persistido, no de contadores en memoria: un
+  // contador en RAM se reinicia con cada deploy o reinicio del servicio mientras la
+  // base conserva los registros, lo que provocaba "Ya existe una entidad con ese ID".
+
+  private int parseIdOCero(String id) {
+    if (id == null || id.isBlank()) {
+      return 0;
+    }
+    try {
+      return Integer.parseInt(id.trim());
+    } catch (NumberFormatException e) {
+      return 0;
+    }
+  }
+
+  private String siguienteId(java.util.stream.Stream<String> idsExistentes) {
+    int maximo = idsExistentes.mapToInt(this::parseIdOCero).max().orElse(0);
+    return String.valueOf(maximo + 1);
+  }
+
+  private String siguienteIdDonador() {
+    return siguienteId(this.donadoresRepository.findAll().stream().map(Donador::getId));
+  }
+
+  private String siguienteIdEntidad() {
+    return siguienteId(this.entidadesRepository.findAll().stream().map(e -> e.getId()));
+  }
+
+  private String siguienteIdNecesidad() {
+    return siguienteId(this.necesidadesRepository.findAll().stream().map(n -> n.getId()));
+  }
+
+  private String siguienteIdQueja() {
+    return siguienteId(todasLasQuejas().stream().map(Queja::getId));
+  }
+
+  /** Todas las quejas persistidas, obtenidas a través de los donadores que las contienen. */
+  private List<Queja> todasLasQuejas() {
+    return this.donadoresRepository.findAll().stream()
+            .map(Donador::getQuejas)
+            .filter(java.util.Objects::nonNull)
+            .flatMap(List::stream)
+            .toList();
+  }
+
   @Override
   public DonadorDTO agregarDonador(DonadorDTO donadorDTO) {
     if (donadorDTO.apellido() == null || donadorDTO.nombre() == null || donadorDTO.edad() == null || donadorDTO.email() == null
@@ -82,8 +123,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
     String id = donadorDTO.id();
     if (id == null) {
-      this.ultimoIdDonador++;
-      id = String.valueOf(this.ultimoIdDonador);
+      id = siguienteIdDonador();
     }
 
     if (this.donadoresRepository.findById(id).isPresent()) {
@@ -227,8 +267,14 @@ public class Fachada implements FachadaDonadoresYEntidades {
       throw new DonadorNoEncontradoException("No existe un donador con ese ID");
     }
 
-    return this.quejas.stream()
-            .filter(q -> q.getDonadorID() != null && q.getDonadorID().equals(donadorID))
+    // Se leen del donador persistido, no de una lista en memoria: así las quejas
+    // sobreviven a los reinicios del servicio.
+    List<Queja> quejasDelDonador = donadorOptional.get().getQuejas();
+    if (quejasDelDonador == null) {
+      return List.of();
+    }
+
+    return quejasDelDonador.stream()
             .map(donadoresYEntidadesDataMapper::toQuejaDTO)
             .toList();
   }
@@ -301,8 +347,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
     String id = entidadBeneficaDTO.id();
     if (id == null) {
-      this.ultimoIdEntidad++;
-      id = String.valueOf(this.ultimoIdEntidad);
+      id = siguienteIdEntidad();
     }
 
     if (this.entidadesRepository.findById(id).isPresent()) {
@@ -364,8 +409,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
     String id = necesidadMaterialDTO.id();
     if (id == null) {
-      this.ultimoIdNecesidad++;
-      id = String.valueOf(this.ultimoIdNecesidad);
+      id = siguienteIdNecesidad();
     }
 
     if (this.necesidadesRepository.findById(id).isPresent()) {
@@ -419,13 +463,12 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
     String idGenerado = quejaDTO.id();
     if (idGenerado == null || idGenerado.isBlank()) {
-      this.ultimoIdQueja++;
-      idGenerado = String.valueOf(this.ultimoIdQueja);
+      idGenerado = siguienteIdQueja();
     }
 
     final String idQueja = idGenerado;
 
-    boolean yaExiste = this.quejas.stream()
+    boolean yaExiste = todasLasQuejas().stream()
             .anyMatch(q -> q.getId() != null && q.getId().equals(idQueja));
 
     if (yaExiste) {
@@ -442,14 +485,17 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
     Queja queja = donadoresYEntidadesDataMapper.toQueja(dtoConId);
 
-    this.quejas.add(queja);
-
+    // La queja se persiste en cascada a través del donador que la contiene.
     val donadorOptional = this.donadoresRepository.findById(quejaDTO.donadorID());
-    if (donadorOptional.isPresent()) {
-      Donador donador = donadorOptional.get();
-      donador.agregarQueja(queja);
-      this.donadoresRepository.save(donador);
+    if (donadorOptional.isEmpty()) {
+      throw new DonadorNoEncontradoException(
+              "No existe un donador con ID " + quejaDTO.donadorID() + " para asociar la queja");
     }
+
+    Donador donador = donadorOptional.get();
+    donador.agregarQueja(queja);
+    this.donadoresRepository.save(donador);
+
     metricasService.incrementarQuejasRegistradas();
     return donadoresYEntidadesDataMapper.toQuejaDTO(queja);
   }
