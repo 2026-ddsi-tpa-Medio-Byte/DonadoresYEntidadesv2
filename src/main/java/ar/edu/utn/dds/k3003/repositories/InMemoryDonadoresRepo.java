@@ -40,4 +40,8 @@ public class InMemoryDonadoresRepo implements DonadoresRepository {
   public List<Donador> findAll() {
     return new ArrayList<>(this.donadores);
   }
+
+  public void deleteAll() {
+    this.donadores.clear();
+  }
 }

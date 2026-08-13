@@ -9,4 +9,5 @@ public interface NecesidadesRepository {
   NecesidadMaterial save(NecesidadMaterial necesidadMaterial);
   NecesidadMaterial removeById(String id);
   List<NecesidadMaterial> findAll();
+  void deleteAll();
 }

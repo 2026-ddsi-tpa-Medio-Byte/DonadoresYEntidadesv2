@@ -37,4 +37,8 @@ public class InMemoryNecesidadesRepo implements NecesidadesRepository {
     public List<NecesidadMaterial> findAll() {
         return new ArrayList<>(this.necesidades);
     }
+
+    public void deleteAll() {
+        this.necesidades.clear();
+    }
 }

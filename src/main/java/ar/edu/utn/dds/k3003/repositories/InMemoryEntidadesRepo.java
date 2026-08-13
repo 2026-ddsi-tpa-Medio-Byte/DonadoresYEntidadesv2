@@ -37,4 +37,8 @@ public class InMemoryEntidadesRepo implements EntidadesRepository {
     public List<EntidadBenefica> findAll() {
         return new ArrayList<>(this.entidades);
     }
+
+    public void deleteAll() {
+        this.entidades.clear();
+    }
 }

@@ -9,4 +9,5 @@ public interface EntidadesRepository {
   EntidadBenefica save(EntidadBenefica entidadBenefica);
   EntidadBenefica removeById(String id);
   List<EntidadBenefica> findAll();
+  void deleteAll();
 }

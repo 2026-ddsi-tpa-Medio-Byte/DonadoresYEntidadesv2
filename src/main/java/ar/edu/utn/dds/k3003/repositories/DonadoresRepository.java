@@ -13,4 +13,5 @@ public interface DonadoresRepository {
   List<Donador> findAll();
   Optional<Donador> findById(String id);
   Donador save(Donador donador);
+  void deleteAll();
 }

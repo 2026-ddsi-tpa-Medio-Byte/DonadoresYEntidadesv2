@@ -76,6 +76,31 @@ class GeneracionDeIdsTest {
   }
 
   @Test
+  @DisplayName("Tras el reset la numeración de IDs vuelve a empezar en 1")
+  void resetReiniciaLaNumeracion() {
+    DonadoresRepository donadores = new InMemoryDonadoresRepo();
+    EntidadesRepository entidades = new InMemoryEntidadesRepo();
+    Fachada fachada = fachadaSobreRepositoriosConDatos(donadores, entidades);
+
+    fachada.agregarEntidad(
+            new EntidadBeneficaDTO(null, "Comedor Uno", "Calle 1", "111", "uno@mail.com"));
+    EntidadBeneficaDTO segunda =
+            fachada.agregarEntidad(
+                    new EntidadBeneficaDTO(null, "Comedor Dos", "Calle 2", "222", "dos@mail.com"));
+    assertEquals("2", segunda.id());
+
+    fachada.resetBaseDeDatos();
+
+    EntidadBeneficaDTO trasReset =
+            fachada.agregarEntidad(
+                    new EntidadBeneficaDTO(
+                            null, "Comedor Nuevo", "Calle 3", "333", "tres@mail.com"));
+
+    assertEquals("1", trasReset.id(), "tras el reset la numeracion debe reiniciarse");
+    assertEquals(1, fachada.buscarTodasLasEntidades().size());
+  }
+
+  @Test
   @DisplayName("Las quejas se leen de lo persistido y sobreviven a un reinicio")
   void quejasSobrevivenAlReinicio() {
     DonadoresRepository donadores = new InMemoryDonadoresRepo();

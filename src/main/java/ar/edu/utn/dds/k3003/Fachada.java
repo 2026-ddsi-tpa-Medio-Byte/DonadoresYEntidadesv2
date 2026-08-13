@@ -67,6 +67,19 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
   
 
+  /**
+   * Vacía por completo la base del módulo. Como los IDs se derivan del máximo existente, al quedar
+   * las tablas vacías la numeración vuelve a empezar en 1. Las quejas y los cambios de estado se
+   * eliminan en cascada junto con sus donadores.
+   */
+  @org.springframework.transaction.annotation.Transactional
+  public void resetBaseDeDatos() {
+    this.necesidadesRepository.deleteAll();
+    this.entidadesRepository.deleteAll();
+    this.donadoresRepository.deleteAll();
+    log.info("[Donadores] Base de datos reseteada");
+  }
+
   // ── Generación de IDs ───────────────────────────────────────────────────────
   // Los IDs se derivan del contenido persistido, no de contadores en memoria: un
   // contador en RAM se reinicia con cada deploy o reinicio del servicio mientras la
