@@ -24,6 +24,9 @@ class Entrega4DonadoresTest {
 
   private Fachada fachada;
 
+  /** La necesidad se cuelga de una entidad que existe: la fachada valida que el ID exista. */
+  private String entidadID;
+
   @Mock private FachadaDonaciones fachadaDonaciones;
 
   @Mock private LogisticaStockClient logisticaStockClient;
@@ -33,6 +36,13 @@ class Entrega4DonadoresTest {
     fachada = new Fachada();
     fachada.setFachadaDonaciones(fachadaDonaciones);
     fachada.setLogisticaStockClient(logisticaStockClient);
+
+    entidadID =
+        fachada
+            .agregarEntidad(
+                new ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.EntidadBeneficaDTO(
+                    null, "Comedor de prueba", "Calle 1", "1130000000", "comedor@mail.com"))
+            .id();
   }
 
   @Test
@@ -45,7 +55,7 @@ class Entrega4DonadoresTest {
     NecesidadMaterialDTO dto =
         new NecesidadMaterialDTO(
             null,
-            "entidad1",
+            entidadID,
             5,
             "necesidad1",
             5,
@@ -67,7 +77,7 @@ class Entrega4DonadoresTest {
     NecesidadMaterialDTO dto =
         new NecesidadMaterialDTO(
             null,
-            "entidad1",
+            entidadID,
             5,
             "necesidad1",
             5,
@@ -88,7 +98,7 @@ class Entrega4DonadoresTest {
     NecesidadMaterialDTO dto =
         new NecesidadMaterialDTO(
             null,
-            "entidad1",
+            entidadID,
             5,
             "necesidad1",
             5,
@@ -99,6 +109,34 @@ class Entrega4DonadoresTest {
 
     // objetivo 5, stock 3 → se solicita asignar 3
     verify(logisticaStockClient).solicitarAsignacion(retorno.id(), "producto1", 3);
+  }
+
+  @Test
+  @DisplayName("No se puede crear una necesidad colgada de una entidad que no existe")
+  void necesidadConEntidadInexistente() {
+    NecesidadMaterialDTO dto =
+        new NecesidadMaterialDTO(
+            null, "entidad-que-no-existe", 5, "necesidad huerfana", 10, null,
+            TipoNecesidadMaterialEnum.EXTRAORDINARIA);
+
+    assertThrows(NoSuchElementException.class, () -> fachada.registrarNecesidad(dto));
+  }
+
+  @Test
+  @DisplayName("La cantidad objetivo de una necesidad tiene que ser mayor a 0")
+  void necesidadConCantidadObjetivoInvalida() {
+    // Una necesidad de 0 nace satisfecha y le ensucia el matchmaking a Logística.
+    for (Integer cantidad : java.util.Arrays.asList(0, -3, null)) {
+      NecesidadMaterialDTO dto =
+          new NecesidadMaterialDTO(
+              null, entidadID, 5, "cantidad invalida", cantidad, null,
+              TipoNecesidadMaterialEnum.EXTRAORDINARIA);
+
+      RuntimeException e =
+          assertThrows(RuntimeException.class, () -> fachada.registrarNecesidad(dto));
+      org.junit.jupiter.api.Assertions.assertEquals(
+          "La cantidad objetivo de la necesidad debe ser mayor a 0", e.getMessage());
+    }
   }
 
   @Test

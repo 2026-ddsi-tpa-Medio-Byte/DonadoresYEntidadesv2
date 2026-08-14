@@ -95,8 +95,15 @@ public class DonadoresYEntidadesTest {
   void satisfacerNecesidadLaQuitaDeLasInsatisfechas() {
     Fachada fachada = new Fachada();
 
+    // La fachada valida que la entidad exista, así que la creamos antes de colgarle la necesidad.
+    String entidadID =
+            fachada.agregarEntidad(
+                    new ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.EntidadBeneficaDTO(
+                            null, "Comedor de prueba", "Calle 1", "1130000000", "comedor@mail.com"))
+                    .id();
+
     NecesidadMaterialDTO necesidad =
-            new NecesidadMaterialDTO(null, "entidad1", 5, "desc", 5, "prod1", TipoNecesidadMaterialEnum.EXTRAORDINARIA);
+            new NecesidadMaterialDTO(null, entidadID, 5, "desc", 5, "prod1", TipoNecesidadMaterialEnum.EXTRAORDINARIA);
 
     NecesidadMaterialDTO guardada = fachada.registrarNecesidad(necesidad);
     fachada.satisfacerNecesidad(guardada.id(), 5);

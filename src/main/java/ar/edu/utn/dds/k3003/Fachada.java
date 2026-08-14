@@ -398,6 +398,23 @@ public class Fachada implements FachadaDonadoresYEntidades {
       throw new RuntimeException("La necesidad no puede ser null");
     }
 
+    // Una necesidad de 0 unidades (o negativa) queda satisfecha de entrada y ensucia el
+    // matchmaking de Logística, que la toma como candidata sin tener nada que asignarle.
+    if (necesidadMaterialDTO.cantidadObjetivo() == null
+        || necesidadMaterialDTO.cantidadObjetivo() <= 0) {
+      metricasService.incrementarNecesidadesErrores();
+      throw new RuntimeException("La cantidad objetivo de la necesidad debe ser mayor a 0");
+    }
+
+    // Mismo criterio que con el producto: sin esto quedaban necesidades huérfanas,
+    // colgadas de una entidad que no existe.
+    if (necesidadMaterialDTO.entidadID() != null
+        && this.entidadesRepository.findById(necesidadMaterialDTO.entidadID()).isEmpty()) {
+      metricasService.incrementarNecesidadesErrores();
+      throw new NoSuchElementException(
+          "No existe una entidad con ese ID: " + necesidadMaterialDTO.entidadID());
+    }
+
     // Entrega 4: corroborar con Donaciones que el producto solicitado exista.
     // Guardado por null: con el constructor sin-args (tests de cátedra) no se valida.
     if (this.fachadaDonaciones != null && necesidadMaterialDTO.productoSolicitadoID() != null) {
