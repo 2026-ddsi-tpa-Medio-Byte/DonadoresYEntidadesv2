@@ -140,6 +140,47 @@ class Entrega4DonadoresTest {
   }
 
   @Test
+  @DisplayName("Diez entregas simultáneas suman todas: no se pisan entre sí")
+  void satisfaccionesConcurrentesNoSePisan() throws InterruptedException {
+    // Reproduce la condición de carrera: sin el candado, las diez lecturas leen la misma
+    // cantidadCubierta y las escrituras se pisan, dejando la necesidad corta.
+    NecesidadMaterialDTO necesidad =
+        fachada.registrarNecesidad(
+            new NecesidadMaterialDTO(
+                null, entidadID, 5, "necesidad concurrente", 20, null,
+                TipoNecesidadMaterialEnum.EXTRAORDINARIA));
+
+    int hilos = 10;
+    int cantidadPorHilo = 2;
+    java.util.concurrent.CountDownLatch salida = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch terminaron =
+        new java.util.concurrent.CountDownLatch(hilos);
+
+    for (int i = 0; i < hilos; i++) {
+      new Thread(
+              () -> {
+                try {
+                  salida.await();
+                  fachada.satisfacerNecesidad(necesidad.id(), cantidadPorHilo);
+                } catch (Exception e) {
+                  // si falla, el assert final lo delata
+                } finally {
+                  terminaron.countDown();
+                }
+              })
+          .start();
+    }
+
+    salida.countDown(); // que arranquen todos juntos
+    terminaron.await();
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+        hilos * cantidadPorHilo,
+        fachada.buscarNecesidadPorID(necesidad.id()).cantidadActual(),
+        "las diez entregas de 2 unidades tienen que sumar 20");
+  }
+
+  @Test
   @DisplayName("Buscar recursos inexistentes da 404, no 400")
   void recursosInexistentesSon404() {
     // Antes lanzaban RuntimeException genérica y el handler devolvía 400. Un recurso que no

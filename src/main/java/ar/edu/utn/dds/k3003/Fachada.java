@@ -292,20 +292,37 @@ public class Fachada implements FachadaDonadoresYEntidades {
             .toList();
   }
 
+  /**
+   * Un candado por necesidad para que dos entregas simultáneas no se pisen.
+   *
+   * <p>Sin esto, satisfacerNecesidad hace leer-modificar-guardar sin protección: dos llamadas a
+   * la vez leen la misma cantidadCubierta y la segunda pisa a la primera. Probado con diez
+   * entregas concurrentes contra una necesidad de 20, quedaba en 8 o en 16 en vez de en 20.
+   *
+   * <p>Alcanza porque el servicio corre en una sola instancia. Si algún día se levanta más de
+   * una, esto hay que reemplazarlo por un bloqueo en la base (SELECT FOR UPDATE o @Version).
+   */
+  private final java.util.concurrent.ConcurrentMap<String, Object> candadosPorNecesidad =
+      new java.util.concurrent.ConcurrentHashMap<>();
+
   @Override
   public NecesidadMaterialDTO satisfacerNecesidad(String necesidadID, Integer cantidad)throws NoSuchElementException {
-    val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
+    Object candado = candadosPorNecesidad.computeIfAbsent(necesidadID, id -> new Object());
 
-    if (necesidadOptional.isEmpty()) {
-      throw new NoSuchElementException("No existe una necesidad con ese ID");
+    synchronized (candado) {
+      val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
+
+      if (necesidadOptional.isEmpty()) {
+        throw new NoSuchElementException("No existe una necesidad con ese ID");
+      }
+
+      val necesidad = necesidadOptional.get();
+      necesidad.registrarSatisfaccion(cantidad);
+
+      this.necesidadesRepository.save(necesidad);
+      metricasService.incrementarNecesidadesSatisfechas();
+      return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);
     }
-
-    val necesidad = necesidadOptional.get();
-    necesidad.registrarSatisfaccion(cantidad);
-
-    this.necesidadesRepository.save(necesidad);
-    metricasService.incrementarNecesidadesSatisfechas();
-    return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);
   }
 
   @Override
