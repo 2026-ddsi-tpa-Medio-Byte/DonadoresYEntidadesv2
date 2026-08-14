@@ -435,15 +435,22 @@ public class Fachada implements FachadaDonadoresYEntidades {
     // Entrega 4: corroborar con Donaciones que el producto solicitado exista.
     // Guardado por null: con el constructor sin-args (tests de cátedra) no se valida.
     if (this.fachadaDonaciones != null && necesidadMaterialDTO.productoSolicitadoID() != null) {
+      long inicioValidacion = System.nanoTime();
       try {
         log.info(
             "[Donadores -> Donaciones] Validando producto de necesidad (productoID={})",
             necesidadMaterialDTO.productoSolicitadoID());
         this.fachadaDonaciones.buscarProductoPorID(necesidadMaterialDTO.productoSolicitadoID());
+        metricasService.registrarLlamadaSaliente(
+            "registrar_necesidad", "donaciones", "validar_producto", true,
+            System.nanoTime() - inicioValidacion);
         log.info(
             "[Donadores <- Donaciones] producto valido (productoID={})",
             necesidadMaterialDTO.productoSolicitadoID());
       } catch (Exception e) {
+        metricasService.registrarLlamadaSaliente(
+            "registrar_necesidad", "donaciones", "validar_producto", false,
+            System.nanoTime() - inicioValidacion);
         metricasService.incrementarNecesidadesErrores();
         log.warn(
             "[Donadores] Necesidad rechazada: producto inexistente en Donaciones (productoID={})",
@@ -480,12 +487,23 @@ public class Fachada implements FachadaDonadoresYEntidades {
     // Entrega 4: consultar stock en Logística y, si hay, asignar al momento (origen = Donadores).
     // Best-effort y guardado por null (no rompe la creación ni los tests de cátedra).
     if (this.logisticaStockClient != null && necesidadGuardada.getProductoSolicitadoID() != null) {
+      long inicioStock = System.nanoTime();
       int stock =
           logisticaStockClient.consultarStockDisponible(necesidadGuardada.getProductoSolicitadoID());
+      // el cliente devuelve 0 y loguea si Logística no responde, así que un 0 puede ser
+      // "no hay stock" o "no contestó"; para la métrica alcanza con que la llamada se hizo
+      metricasService.registrarLlamadaSaliente(
+          "registrar_necesidad", "logistica", "consultar_stock", true,
+          System.nanoTime() - inicioStock);
+
       int aAsignar = Math.min(stock, necesidadGuardada.cantidadFaltante());
       if (aAsignar > 0) {
+        long inicioAsignacion = System.nanoTime();
         logisticaStockClient.solicitarAsignacion(
             necesidadGuardada.getId(), necesidadGuardada.getProductoSolicitadoID(), aAsignar);
+        metricasService.registrarLlamadaSaliente(
+            "registrar_necesidad", "logistica", "solicitar_asignacion", true,
+            System.nanoTime() - inicioAsignacion);
         try {
           necesidadGuardada.registrarSatisfaccion(aAsignar);
           this.necesidadesRepository.save(necesidadGuardada);

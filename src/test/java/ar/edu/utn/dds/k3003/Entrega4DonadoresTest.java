@@ -181,6 +181,52 @@ class Entrega4DonadoresTest {
   }
 
   @Test
+  @DisplayName("Crear una necesidad deja registrado a qué módulos se le pegó")
+  void registraElImpactoEnLosOtrosModulos() {
+    // Constructor completo para poder pasarle un registro propio y después inspeccionarlo.
+    io.micrometer.core.instrument.simple.SimpleMeterRegistry registro =
+        new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+    Fachada conMetricas =
+        new Fachada(
+            new ar.edu.utn.dds.k3003.repositories.InMemoryDonadoresRepo(),
+            new ar.edu.utn.dds.k3003.repositories.InMemoryEntidadesRepo(),
+            new ar.edu.utn.dds.k3003.repositories.InMemoryNecesidadesRepo(),
+            new MetricasService(registro));
+    conMetricas.setFachadaDonaciones(fachadaDonaciones);
+    conMetricas.setLogisticaStockClient(logisticaStockClient);
+
+    String entidad =
+        conMetricas
+            .agregarEntidad(
+                new ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.EntidadBeneficaDTO(
+                    null, "Comedor", "Calle 1", "1130000000", "c@mail.com"))
+            .id();
+    when(fachadaDonaciones.buscarProductoPorID("producto1"))
+        .thenReturn(new ProductoDTO("producto1", "Arroz", "Arroz blanco largo fino", "alim", "1"));
+    when(logisticaStockClient.consultarStockDisponible("producto1")).thenReturn(3);
+
+    conMetricas.registrarNecesidad(
+        new NecesidadMaterialDTO(
+            null, entidad, 5, "necesidad con impacto", 5, "producto1",
+            TipoNecesidadMaterialEnum.EXTRAORDINARIA));
+
+    // Un POST /necesidades tiene que dejar huella de las tres llamadas salientes:
+    // validar el producto en Donaciones, consultar stock y pedir la asignación en Logística.
+    java.util.List<String> acciones =
+        registro.find("integracion.llamadas").counters().stream()
+            .map(c -> c.getId().getTag("destino") + ":" + c.getId().getTag("accion"))
+            .sorted()
+            .toList();
+
+    org.junit.jupiter.api.Assertions.assertEquals(
+        java.util.List.of(
+            "donaciones:validar_producto",
+            "logistica:consultar_stock",
+            "logistica:solicitar_asignacion"),
+        acciones);
+  }
+
+  @Test
   @DisplayName("Buscar recursos inexistentes da 404, no 400")
   void recursosInexistentesSon404() {
     // Antes lanzaban RuntimeException genérica y el handler devolvía 400. Un recurso que no
