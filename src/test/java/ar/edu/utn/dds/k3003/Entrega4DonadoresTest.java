@@ -100,4 +100,15 @@ class Entrega4DonadoresTest {
     // objetivo 5, stock 3 → se solicita asignar 3
     verify(logisticaStockClient).solicitarAsignacion(retorno.id(), "producto1", 3);
   }
+
+  @Test
+  @DisplayName("Buscar recursos inexistentes da 404, no 400")
+  void recursosInexistentesSon404() {
+    // Antes lanzaban RuntimeException genérica y el handler devolvía 400. Un recurso que no
+    // existe tiene que responder 404 para que los otros módulos lo distingan de un pedido inválido.
+    assertThrows(NoSuchElementException.class, () -> fachada.buscarEntidadPorID("999999"));
+    assertThrows(NoSuchElementException.class, () -> fachada.estadisticasDonador("999999"));
+    assertThrows(NoSuchElementException.class, () -> fachada.satisfacerNecesidad("999999", 1));
+    assertThrows(NoSuchElementException.class, () -> fachada.modificarNecesidad("999999", null));
+  }
 }

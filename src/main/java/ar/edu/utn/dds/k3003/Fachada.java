@@ -297,7 +297,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
 
     if (necesidadOptional.isEmpty()) {
-      throw new RuntimeException("No existe una necesidad con ese ID");
+      throw new NoSuchElementException("No existe una necesidad con ese ID");
     }
 
     val necesidad = necesidadOptional.get();
@@ -313,7 +313,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val donadorOptional = this.donadoresRepository.findById(donadorID);
 
     if (donadorOptional.isEmpty()) {
-      throw new RuntimeException("No existe un donador con ese ID");
+      throw new NoSuchElementException("No existe un donador con ese ID");
     }
 
     val donador = donadorOptional.get();
@@ -386,7 +386,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val entidadOptional = this.entidadesRepository.findById(entidadID);
 
     if (entidadOptional.isEmpty()) {
-      throw new RuntimeException("No existe una entidad con ese ID");
+      throw new NoSuchElementException("No existe una entidad con ese ID");
     }
 
     return donadoresYEntidadesDataMapper.toEntidadBeneficaDTO(entidadOptional.get());
@@ -536,7 +536,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
   public NecesidadMaterialDTO modificarNecesidad(String necesidadID, NecesidadMaterialDTO dto) {
     val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
     if (necesidadOptional.isEmpty()) {
-      throw new RuntimeException("No existe una necesidad con ese ID");
+      throw new NoSuchElementException("No existe una necesidad con ese ID");
     }
     val necesidad = necesidadOptional.get();
     if (dto.nivelDeUrgencia() != null) necesidad.setNivelDeUrgencia(dto.nivelDeUrgencia());
@@ -553,7 +553,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
   public EntidadBeneficaDTO editarEntidad(String entidadID, EntidadBeneficaDTO dto) {
     val entidadOptional = this.entidadesRepository.findById(entidadID);
     if (entidadOptional.isEmpty()) {
-      throw new RuntimeException("No existe una entidad con ese ID");
+      throw new NoSuchElementException("No existe una entidad con ese ID");
     }
     val entidad = entidadOptional.get();
     if (dto.razonSocial() != null) entidad.setRazonSocial(dto.razonSocial());
