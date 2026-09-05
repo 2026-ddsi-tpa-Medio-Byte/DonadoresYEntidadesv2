@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!--
+    En consola se muestra el traceId para poder seguir una operación mientras se prueba
+    a mano; los mismos datos viajan a Datadog en el MDC de cada evento.
+  -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level [trace=%X{traceId:-—}] %logger{28} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!--
+    El appender de Datadog solo hace algo si hay DATADOG_API_KEY. Sin la variable
+    arranca igual y loguea únicamente en consola, así el proyecto corre en local sin
+    tener que configurar nada.
+  -->
+  <springProperty scope="context" name="ddApiKey" source="datadog.logs.api-key" defaultValue=""/>
+  <springProperty scope="context" name="ddSitio" source="datadog.logs.sitio" defaultValue="us5.datadoghq.com"/>
+  <springProperty scope="context" name="ambiente" source="datadog.logs.ambiente" defaultValue="local"/>
+
+  <appender name="DATADOG" class="ar.edu.utn.dds.k3003.logging.DatadogLogAppender">
+    <apiKey>${ddApiKey}</apiKey>
+    <servicio>donadores-y-entidades</servicio>
+    <ambiente>${ambiente}</ambiente>
+    <sitio>${ddSitio}</sitio>
+  </appender>
+
+  <!-- Hibernate y Spring son ruidosos; solo interesan sus advertencias. -->
+  <logger name="org.hibernate" level="WARN"/>
+  <logger name="org.springframework.web" level="WARN"/>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="DATADOG"/>
+  </root>
+
+</configuration>
