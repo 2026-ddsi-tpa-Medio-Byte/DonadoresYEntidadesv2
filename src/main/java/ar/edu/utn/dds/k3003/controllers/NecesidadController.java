@@ -5,6 +5,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.NecesidadMaterialDT
 import ar.edu.utn.dds.k3003.controllers.requests.SatisfaccionRequest;
 import ar.edu.utn.dds.k3003.controllers.responses.NecesidadResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
@@ -28,6 +29,7 @@ public class NecesidadController {
             @ApiResponse(responseCode = "404", description = "Entidad no encontrada"),
             @ApiResponse(responseCode = "400", description = "Solicitud inválida")
     })
+    @Tag(name = "1 · Flujo principal")
     @PostMapping
     public ResponseEntity<NecesidadMaterialDTO> registrarNecesidad(
             @RequestBody NecesidadMaterialDTO necesidadMaterialDTO) {
@@ -42,6 +44,7 @@ public class NecesidadController {
             @ApiResponse(responseCode = "200", description = "Lista de necesidades"),
             @ApiResponse(responseCode = "404", description = "Necesidades no encontradas")
     })
+    @Tag(name = "3 · Consultas")
     @GetMapping
     public ResponseEntity<List<NecesidadResponse>>
     obtenerNecesidadesInsatisfechasDeProducto(
@@ -57,6 +60,7 @@ public class NecesidadController {
             @ApiResponse(responseCode = "200", description = "Necesidad encontrada"),
             @ApiResponse(responseCode = "404", description = "Necesidad no encontrada")
     })
+    @Tag(name = "3 · Consultas")
     @GetMapping("/{id}")
     public ResponseEntity<NecesidadResponse> buscarNecesidadPorID(@PathVariable String id) {
         return ResponseEntity.ok(fachada.buscarNecesidadPorID(id));
@@ -68,6 +72,7 @@ public class NecesidadController {
             @ApiResponse(responseCode = "404", description = "Necesidad no encontrada"),
             @ApiResponse(responseCode = "400", description = "Cantidad inválida")
     })
+    @Tag(name = "1 · Flujo principal")
     @PostMapping("/{necesidadID}/satisfaccion")
     public ResponseEntity<NecesidadMaterialDTO> satisfacerNecesidad(
             @PathVariable String necesidadID,
@@ -82,6 +87,7 @@ public class NecesidadController {
             @ApiResponse(responseCode = "200", description = "Necesidad actualizada"),
             @ApiResponse(responseCode = "404", description = "Necesidad no encontrada")
     })
+    @Tag(name = "2 · Precondiciones")
     @PutMapping("/{id}")
     public ResponseEntity<NecesidadMaterialDTO> modificarNecesidad(
             @PathVariable String id, @RequestBody NecesidadMaterialDTO necesidadMaterialDTO) {
@@ -93,6 +99,7 @@ public class NecesidadController {
             @ApiResponse(responseCode = "204", description = "Necesidad eliminada"),
             @ApiResponse(responseCode = "404", description = "Necesidad no encontrada")
     })
+    @Tag(name = "2 · Precondiciones")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> borrarNecesidad(@PathVariable String id) {
         fachada.eliminarNecesidad(id);

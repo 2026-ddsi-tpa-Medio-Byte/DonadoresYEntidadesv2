@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
@@ -31,6 +32,7 @@ public class DonadorController {
           @ApiResponse(responseCode = "201", description = "Donador creado correctamente"),
           @ApiResponse(responseCode = "400", description = "Solicitud inválida")
   })
+  @Tag(name = "2 · Precondiciones")
   @PostMapping
   public ResponseEntity<DonadorDTO> postDonador(@RequestBody DonadorDTO donadorDTO) {
     return ResponseEntity.status(HttpStatus.CREATED)
@@ -39,6 +41,7 @@ public class DonadorController {
 
   @Operation(summary = "Obtener todos los donadores")
   @ApiResponse(responseCode = "200", description = "Lista de donadores")
+  @Tag(name = "3 · Consultas")
   @GetMapping
   public ResponseEntity<List<DonadorDTO>> getDonadores() {
     return ResponseEntity.ok(fachada.buscarTodosLosDonadores());
@@ -49,6 +52,7 @@ public class DonadorController {
           @ApiResponse(responseCode = "200", description = "Donador encontrado"),
           @ApiResponse(responseCode = "404", description = "Donador no encontrado")
   })
+  @Tag(name = "3 · Consultas")
   @GetMapping("/{id}")
   public ResponseEntity<DonadorDTO> getDonadorByID(@PathVariable String id) {
     return ResponseEntity.ok(fachada.buscarDonadorPorID(id));
@@ -60,6 +64,7 @@ public class DonadorController {
           @ApiResponse(responseCode = "400", description = "Estado inválido"),
           @ApiResponse(responseCode = "404", description = "Donador no encontrado")
   })
+  @Tag(name = "4 · Administración")
   @PatchMapping("/{id}/estado")
   public ResponseEntity<DonadorDTO> modificarEstado(
           @PathVariable String id,
@@ -73,6 +78,7 @@ public class DonadorController {
           @ApiResponse(responseCode = "400", description = "Categoría inválida"),
           @ApiResponse(responseCode = "404", description = "Donador no encontrado")
   })
+  @Tag(name = "4 · Administración")
   @PatchMapping("/{id}/categoria")
   public ResponseEntity<DonadorDTO> modificarCategoria(
           @PathVariable String id,
@@ -85,6 +91,7 @@ public class DonadorController {
           @ApiResponse(responseCode = "200", description = "Resultado de validación"),
           @ApiResponse(responseCode = "404", description = "Donador no encontrado")
   })
+  @Tag(name = "3 · Consultas")
   @GetMapping("/{id}/puede-donar")
   public ResponseEntity<Map<String, Boolean>> puedeDonar(@PathVariable String id) {
     return ResponseEntity.ok(Map.of("puedeDonar", fachada.puedeDonar(id)));
@@ -95,6 +102,7 @@ public class DonadorController {
           @ApiResponse(responseCode = "200", description = "Estadísticas del donador"),
           @ApiResponse(responseCode = "404", description = "Donador no encontrado")
   })
+  @Tag(name = "1 · Flujo principal")
   @GetMapping("/{id}/estadisticas")
   public ResponseEntity<DonadorStatsDTO> estadisticasDonador(@PathVariable String id) {
     return ResponseEntity.ok(fachada.estadisticasDonador(id));
@@ -106,6 +114,7 @@ public class DonadorController {
           @ApiResponse(responseCode = "400", description = "Solicitud inválida"),
           @ApiResponse(responseCode = "404", description = "Donador no encontrado")
   })
+  @Tag(name = "1 · Flujo principal")
   @PostMapping("/{id}/quejas")
   public ResponseEntity<QuejaDTO> agregarQueja(
           @PathVariable String id,
@@ -128,6 +137,7 @@ public class DonadorController {
           @ApiResponse(responseCode = "200", description = "Lista de quejas"),
           @ApiResponse(responseCode = "404", description = "Donador no encontrado")
   })
+  @Tag(name = "3 · Consultas")
   @GetMapping("/{id}/quejas")
   public ResponseEntity<List<QuejaDTO>> obtenerQuejas(@PathVariable String id) {
     return ResponseEntity.ok(fachada.obtenerQuejasDe(id));

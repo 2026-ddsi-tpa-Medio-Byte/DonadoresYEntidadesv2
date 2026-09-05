@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** Operaciones de administración para facilitar las pruebas y la corrección. */
 @RestController
-@Tag(name = "Administración", description = "Utilidades de mantenimiento de la base")
+@Tag(name = "4 · Administración")
 public class AdminController {
 
     private final Fachada fachada;

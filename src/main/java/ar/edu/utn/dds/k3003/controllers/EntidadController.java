@@ -3,6 +3,7 @@ package ar.edu.utn.dds.k3003.controllers;
 import ar.edu.utn.dds.k3003.Fachada;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.EntidadBeneficaDTO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import java.util.List;
@@ -25,6 +26,7 @@ public class EntidadController {
             @ApiResponse(responseCode = "201", description = "Entidad creada"),
             @ApiResponse(responseCode = "400", description = "Solicitud inválida")
     })
+    @Tag(name = "2 · Precondiciones")
     @PostMapping
     public ResponseEntity<EntidadBeneficaDTO> postEntidad(
             @RequestBody EntidadBeneficaDTO entidadBeneficaDTO) {
@@ -37,6 +39,7 @@ public class EntidadController {
 
     @Operation(summary = "Obtener todas las entidades")
     @ApiResponse(responseCode = "200", description = "Lista de entidades")
+    @Tag(name = "3 · Consultas")
     @GetMapping
     public ResponseEntity<List<EntidadBeneficaDTO>> getEntidades() {
         return ResponseEntity.ok(fachada.buscarTodasLasEntidades());
@@ -47,6 +50,7 @@ public class EntidadController {
             @ApiResponse(responseCode = "200", description = "Entidad encontrada"),
             @ApiResponse(responseCode = "404", description = "Entidad no encontrada")
     })
+    @Tag(name = "3 · Consultas")
     @GetMapping("/{id}")
     public ResponseEntity<EntidadBeneficaDTO> getEntidadByID(@PathVariable String id) {
         EntidadBeneficaDTO entidad = fachada.buscarEntidadPorID(id);
@@ -58,6 +62,7 @@ public class EntidadController {
             @ApiResponse(responseCode = "200", description = "Entidad actualizada"),
             @ApiResponse(responseCode = "404", description = "Entidad no encontrada")
     })
+    @Tag(name = "2 · Precondiciones")
     @PutMapping("/{id}")
     public ResponseEntity<EntidadBeneficaDTO> putEntidad(
             @PathVariable String id, @RequestBody EntidadBeneficaDTO entidadBeneficaDTO) {
