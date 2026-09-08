@@ -26,7 +26,7 @@ public class EntidadController {
             @ApiResponse(responseCode = "201", description = "Entidad creada"),
             @ApiResponse(responseCode = "400", description = "Solicitud inválida")
     })
-    @Tag(name = "2 · Precondiciones")
+    @Tag(name = "Precondiciones")
     @PostMapping
     public ResponseEntity<EntidadBeneficaDTO> postEntidad(
             @RequestBody EntidadBeneficaDTO entidadBeneficaDTO) {
@@ -39,7 +39,7 @@ public class EntidadController {
 
     @Operation(summary = "Obtener todas las entidades")
     @ApiResponse(responseCode = "200", description = "Lista de entidades")
-    @Tag(name = "3 · Consultas")
+    @Tag(name = "Consultas")
     @GetMapping
     public ResponseEntity<List<EntidadBeneficaDTO>> getEntidades() {
         return ResponseEntity.ok(fachada.buscarTodasLasEntidades());
@@ -50,7 +50,7 @@ public class EntidadController {
             @ApiResponse(responseCode = "200", description = "Entidad encontrada"),
             @ApiResponse(responseCode = "404", description = "Entidad no encontrada")
     })
-    @Tag(name = "3 · Consultas")
+    @Tag(name = "Consultas")
     @GetMapping("/{id}")
     public ResponseEntity<EntidadBeneficaDTO> getEntidadByID(@PathVariable String id) {
         EntidadBeneficaDTO entidad = fachada.buscarEntidadPorID(id);
@@ -62,7 +62,7 @@ public class EntidadController {
             @ApiResponse(responseCode = "200", description = "Entidad actualizada"),
             @ApiResponse(responseCode = "404", description = "Entidad no encontrada")
     })
-    @Tag(name = "2 · Precondiciones")
+    @Tag(name = "Precondiciones")
     @PutMapping("/{id}")
     public ResponseEntity<EntidadBeneficaDTO> putEntidad(
             @PathVariable String id, @RequestBody EntidadBeneficaDTO entidadBeneficaDTO) {
