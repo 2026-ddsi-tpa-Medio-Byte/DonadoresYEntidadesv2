@@ -1,6 +1,7 @@
 package ar.edu.utn.dds.k3003.clients;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import ar.edu.utn.dds.k3003.AppConfig;
 import ar.edu.utn.dds.k3003.Fachada;
 import ar.edu.utn.dds.k3003.MetricasService;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.DonadorDTO;
@@ -22,15 +24,21 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.SocketTimeoutException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 /**
@@ -182,6 +190,82 @@ class IncentivosHttpClientTest {
     assertEquals("Ana", conIncentivosCaido.nombre());
     assertEquals(2, llamadas(registro, "error"), "«no contestó» sí es una falla");
     incentivos.verify();
+  }
+
+  // ── Contra un Incentivos con HTTP de verdad ──────────────────────────────────────────────────
+  //
+  // Los tests de arriba simulan la red, y con eso un timeout nunca llega a pasar. Estos usan el
+  // RestTemplate que arma AppConfig para Incentivos contra un servidor local, para probar lo que
+  // falló en producción: con Incentivos colgado, la consulta esperaba para siempre.
+
+  /** Chico para que el test sea rápido; en producción son 3 s de conexión y 8 s de lectura. */
+  private static final long TIMEOUT_MS = 1000;
+
+  private IncentivosDePrueba incentivosReal;
+
+  @AfterEach
+  void apagarIncentivosReal() {
+    if (incentivosReal != null) {
+      incentivosReal.close();
+    }
+  }
+
+  @Test
+  // Sin timeout en el cliente, la consulta queda esperando: este límite hace que el test falle en
+  // vez de colgar la suite. En otro hilo, porque una lectura bloqueada puede no atender la
+  // interrupción y JUnit no podría cortarla.
+  @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+  @DisplayName(
+      "Si Incentivos acepta la conexión y no contesta, la consulta corta al vencer el timeout de"
+          + " lectura y lanza excepción, en vez de quedar colgada")
+  void incentivosColgadoCortaPorTimeout() {
+    incentivosReal = IncentivosDePrueba.queNoContesta();
+    IncentivosHttpClient clienteReal = clienteContra(incentivosReal);
+
+    long inicio = System.nanoTime();
+    RuntimeException e =
+        assertThrows(RuntimeException.class, () -> clienteReal.getMisionEnCursoDeDonador("7"));
+    long transcurridoMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - inicio);
+
+    assertTrue(
+        transcurridoMs < 2 * TIMEOUT_MS,
+        "tardó " + transcurridoMs + " ms con un timeout de " + TIMEOUT_MS + " ms");
+    // El timeout llega como ResourceAccessException, que es un RestClientException: el cliente lo
+    // traduce igual que un 500, y por eso la fachada lo cuenta como llamada fallida.
+    assertInstanceOf(ResourceAccessException.class, e.getCause());
+    assertTrue(e.getMessage().startsWith("Incentivos no respondió o falló"), e.getMessage());
+    // El pedido llegó: cortó por la lectura, no porque no se pudiera conectar.
+    assertEquals(List.of("/donadores/7/mision-actual"), incentivosReal.rutasPedidas());
+  }
+
+  @Test
+  @DisplayName(
+      "El RestTemplate de Incentivos manda el X-Trace-Id del MDC, para seguir la consulta en el"
+          + " log centralizado")
+  void propagaElTraceId() {
+    incentivosReal = IncentivosDePrueba.queContesta("[]");
+    IncentivosHttpClient clienteReal = clienteContra(incentivosReal);
+
+    MDC.put("traceId", "traza-estadisticas");
+    try {
+      assertEquals(List.of(), clienteReal.getInsigniasDeDonador("7"));
+    } finally {
+      MDC.remove("traceId");
+    }
+
+    assertEquals(List.of("traza-estadisticas"), incentivosReal.traceIdsRecibidos());
+  }
+
+  /** El cliente con el RestTemplate que usa en producción, apuntado al servidor local. */
+  private IncentivosHttpClient clienteContra(IncentivosDePrueba servidor) {
+    // El builder con los conversores de Spring Boot, como el que inyecta Spring.
+    RestTemplateBuilder builder =
+        new RestTemplateBuilder().messageConverters(new HttpMessageConverters().getConverters());
+    IncentivosHttpClient clienteReal =
+        new IncentivosHttpClient(
+            new AppConfig().restTemplateIncentivos(builder, TIMEOUT_MS, TIMEOUT_MS));
+    ReflectionTestUtils.setField(clienteReal, "incentivosUrl", servidor.url());
+    return clienteReal;
   }
 
   private double llamadas(SimpleMeterRegistry registro, String resultado) {

@@ -6,6 +6,7 @@ import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -23,8 +24,10 @@ public class IncentivosHttpClient implements FachadaIncentivos {
 
     private final RestTemplate restTemplate;
 
+    // El de Incentivos, con timeout: con el compartido, que no tiene, un Incentivos colgado dejaba
+    // las estadísticas del donador esperando para siempre. Ver AppConfig.restTemplateIncentivos.
     @Autowired
-    public IncentivosHttpClient(RestTemplate restTemplate) {
+    public IncentivosHttpClient(@Qualifier("restTemplateIncentivos") RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 

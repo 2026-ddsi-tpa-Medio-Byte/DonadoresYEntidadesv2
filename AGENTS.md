@@ -50,6 +50,12 @@ se ejecutan, y por eso esa suite sigue pasando.
 
 La consulta de stock es *best-effort*: si Logística no responde, la necesidad se crea igual.
 
+Solo **Incentivos** tiene timeout (`restTemplateIncentivos`: 3 s de conexión y 8 s de lectura,
+configurables con `incentivos.timeout.conexion-ms` y `incentivos.timeout.lectura-ms`): sin él, las
+estadísticas de un donador no respondían nunca con Incentivos caído. El `RestTemplate` de
+Donaciones y Logística sigue sin timeout a propósito: validar el producto es bloqueante, y un
+límite corto rechazaría necesidades válidas mientras Donaciones despierta en Render.
+
 ## Estructura
 
 ```
@@ -73,5 +79,5 @@ endpoint existe para que Logística consulte las insatisfechas de un producto.
 mvn test
 ```
 
-142 tests, 0 fallos. Corren 112: los 30 saltados son los tests de cátedra de los otros tres
+145 tests, 0 fallos. Corren 115: los 30 saltados son los tests de cátedra de los otros tres
 módulos, que se desactivan solos con `@EnabledIf`.
