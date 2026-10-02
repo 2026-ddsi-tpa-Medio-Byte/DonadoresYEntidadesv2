@@ -30,7 +30,8 @@ public class DonadorController {
   @Operation(summary = "Agregar un donador")
   @ApiResponses({
           @ApiResponse(responseCode = "201", description = "Donador creado correctamente"),
-          @ApiResponse(responseCode = "400", description = "Solicitud inválida")
+          @ApiResponse(responseCode = "400", description = "Faltan datos obligatorios o la edad no es válida"),
+          @ApiResponse(responseCode = "409", description = "Ya existe un donador con ese ID o documento")
   })
   @Tag(name = "Precondiciones")
   @PostMapping

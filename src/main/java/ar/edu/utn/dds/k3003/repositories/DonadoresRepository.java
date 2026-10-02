@@ -14,4 +14,6 @@ public interface DonadoresRepository {
   Optional<Donador> findById(String id);
   Donador save(Donador donador);
   void deleteAll();
+  // En JPA lo implementa Spring Data a partir del nombre; no hace falta escribir la consulta.
+  boolean existsByNroDocumento(String nroDocumento);
 }

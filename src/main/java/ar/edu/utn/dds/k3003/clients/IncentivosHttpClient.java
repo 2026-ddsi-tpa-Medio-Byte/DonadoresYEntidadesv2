@@ -8,6 +8,8 @@ import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
@@ -36,14 +38,25 @@ public class IncentivosHttpClient implements FachadaIncentivos {
         throw new UnsupportedOperationException("No utilizado por DonadoresYEntidades");
     }
 
+    // Un 404 es una respuesta: Incentivos dice que el donador no tiene insignias o misión, y eso
+    // se informa como lista vacía o null. Cualquier otro error (5xx, timeout, conexión rechazada)
+    // es que Incentivos no pudo contestar, y sigue saliendo como excepción para que la fachada lo
+    // cuente como llamada fallida. Antes los dos casos eran la misma NoSuchElementException, y un
+    // donador sin misión sumaba un error a la alarma de integraciones en cada consulta.
+
     @Override
     public List<InsigniaDTO> getInsigniasDeDonador(String donadorID) throws NoSuchElementException {
         String url = incentivosUrl + "/donadores/" + donadorID + "/insignias";
         try {
             InsigniaDTO[] insignias = restTemplate.getForObject(url, InsigniaDTO[].class);
             return insignias != null ? List.of(insignias) : List.of();
-        } catch (Exception e) {
-            throw new NoSuchElementException("No se encontraron insignias para el donador: " + donadorID);
+        } catch (HttpClientErrorException.NotFound e) {
+            return List.of();
+        } catch (RestClientException e) {
+            throw new RuntimeException(
+                    "Incentivos no respondió o falló al consultar las insignias del donador "
+                            + donadorID + ": " + e.getMessage(),
+                    e);
         }
     }
 
@@ -52,8 +65,13 @@ public class IncentivosHttpClient implements FachadaIncentivos {
         String url = incentivosUrl + "/donadores/" + donadorID + "/mision-actual";
         try {
             return restTemplate.getForObject(url, MisionDTO.class);
-        } catch (Exception e) {
-            throw new NoSuchElementException("No se encontró una misión en curso para el donador: " + donadorID);
+        } catch (HttpClientErrorException.NotFound e) {
+            return null;
+        } catch (RestClientException e) {
+            throw new RuntimeException(
+                    "Incentivos no respondió o falló al consultar la misión en curso del donador "
+                            + donadorID + ": " + e.getMessage(),
+                    e);
         }
     }
 

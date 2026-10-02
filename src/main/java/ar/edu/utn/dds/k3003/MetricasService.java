@@ -78,7 +78,8 @@ public class MetricasService {
    * Registra una llamada saliente a otro módulo.
    *
    * @param operacion qué operación nuestra la disparó, por ejemplo {@code registrar_necesidad}
-   * @param destino módulo al que le pegamos: {@code donaciones} o {@code logistica}
+   * @param destino módulo al que le pegamos: {@code donaciones}, {@code logistica} o {@code
+   *     incentivos}
    * @param accion qué le pedimos, por ejemplo {@code validar_producto}
    * @param exito si respondió bien
    * @param nanos cuánto tardó

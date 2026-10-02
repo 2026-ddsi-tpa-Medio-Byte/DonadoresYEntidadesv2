@@ -22,13 +22,14 @@ Al registrar una necesidad:
 2. Le pregunta a **Donaciones** si el producto existe; si no, la rechaza.
 3. Guarda la necesidad.
 4. Le consulta el stock a **Logística** y, si hay disponible, pide que se asigne en el momento
-   con `origen: SOLICITUD_DONADORES`.
+   con `origen: SOLICITUD_DONADORES`. La satisfacción local se registra solo si Logística
+   confirmó la asignación, y una `RECURRENTE` solo se asigna si el stock cubre todo lo que falta.
 
 Ese `origen` es lo que distingue esta asignación de la que nace del matchmaking, y lo necesita
 Incentivos.
 
 También es el que decide si un donador puede donar: acumula las quejas y de ahí sale el estado
-`VERIFICADO` → `SOSPECHOSO` (≈8 quejas) → `BANEADO` (≈11). Donaciones consulta eso antes de
+`VERIFICADO` → `SOSPECHOSO` (5 quejas) → `BANEADO` (10 quejas). Donaciones consulta eso antes de
 aceptar una donación.
 
 ## Cuidado con la concurrencia
@@ -72,4 +73,5 @@ endpoint existe para que Logística consulte las insatisfechas de un producto.
 mvn test
 ```
 
-89 tests, 0 fallos.
+142 tests, 0 fallos. Corren 112: los 30 saltados son los tests de cátedra de los otros tres
+módulos, que se desactivan solos con `@EnabledIf`.

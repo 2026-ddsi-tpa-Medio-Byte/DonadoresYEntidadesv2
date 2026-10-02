@@ -93,7 +93,12 @@ class Entrega4DonadoresTest {
     when(fachadaDonaciones.buscarProductoPorID("producto1"))
         .thenReturn(
             new ProductoDTO("producto1", "Arroz", "Arroz blanco largo fino", "alimentos", "1"));
-    when(logisticaStockClient.consultarStockDisponible("producto1")).thenReturn(3);
+    when(logisticaStockClient.consultarStockDisponible("producto1"))
+        .thenReturn(java.util.OptionalInt.of(3));
+    when(logisticaStockClient.solicitarAsignacion(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("producto1"),
+            org.mockito.ArgumentMatchers.eq(3)))
+        .thenReturn(true);
 
     NecesidadMaterialDTO dto =
         new NecesidadMaterialDTO(
@@ -203,7 +208,12 @@ class Entrega4DonadoresTest {
             .id();
     when(fachadaDonaciones.buscarProductoPorID("producto1"))
         .thenReturn(new ProductoDTO("producto1", "Arroz", "Arroz blanco largo fino", "alim", "1"));
-    when(logisticaStockClient.consultarStockDisponible("producto1")).thenReturn(3);
+    when(logisticaStockClient.consultarStockDisponible("producto1"))
+        .thenReturn(java.util.OptionalInt.of(3));
+    when(logisticaStockClient.solicitarAsignacion(
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("producto1"),
+            org.mockito.ArgumentMatchers.eq(3)))
+        .thenReturn(true);
 
     conMetricas.registrarNecesidad(
         new NecesidadMaterialDTO(

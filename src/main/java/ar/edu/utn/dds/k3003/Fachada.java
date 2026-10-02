@@ -1,6 +1,7 @@
 package ar.edu.utn.dds.k3003;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.*;
+import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.InsigniaDTO;
 import ar.edu.utn.dds.k3003.catedra.dtos.incentivos.MisionDTO;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
@@ -10,13 +11,16 @@ import ar.edu.utn.dds.k3003.controllers.responses.NecesidadResponse;
 import ar.edu.utn.dds.k3003.exceptions.DonadorNoEncontradoException;
 import ar.edu.utn.dds.k3003.exceptions.DonadorYaExistenteException;
 import ar.edu.utn.dds.k3003.model.Donador;
+import ar.edu.utn.dds.k3003.model.NecesidadMaterial;
 import ar.edu.utn.dds.k3003.model.Queja;
 import ar.edu.utn.dds.k3003.repositories.*;
 import lombok.val;
 import ar.edu.utn.dds.k3003.MetricasService;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.OptionalInt;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -126,12 +130,44 @@ public class Fachada implements FachadaDonadoresYEntidades {
             .toList();
   }
 
+  private static boolean estaVacio(String valor) {
+    return valor == null || valor.isBlank();
+  }
+
+  /**
+   * Los campos obligatorios que no vinieron, en el orden del DTO. Se informan todos juntos para que
+   * quien da el alta los corrija en un solo intento. El email y la categoría no se validan más allá
+   * de su presencia: el fixture de cátedra usa "donador1" en ambos e Incentivos manda categorías
+   * propias por PATCH.
+   */
+  private static List<String> camposFaltantes(DonadorDTO dto) {
+    List<String> faltantes = new ArrayList<>();
+    if (estaVacio(dto.nombre())) faltantes.add("nombre");
+    if (estaVacio(dto.apellido())) faltantes.add("apellido");
+    if (dto.edad() == null) faltantes.add("edad");
+    if (estaVacio(dto.email())) faltantes.add("email");
+    if (estaVacio(dto.nroDocumento())) faltantes.add("nroDocumento");
+    if (estaVacio(dto.domicilio())) faltantes.add("domicilio");
+    return faltantes;
+  }
+
   @Override
   public DonadorDTO agregarDonador(DonadorDTO donadorDTO) {
-    if (donadorDTO.apellido() == null || donadorDTO.nombre() == null || donadorDTO.edad() == null || donadorDTO.email() == null
-            || donadorDTO.nroDocumento() == null || donadorDTO.domicilio() == null) {
+    if (donadorDTO == null) {
       metricasService.incrementarDonadoresErrores();
-      throw new RuntimeException("El donador no puede ser null");
+      throw new RuntimeException("No llegaron los datos del donador");
+    }
+
+    List<String> faltantes = camposFaltantes(donadorDTO);
+    if (!faltantes.isEmpty()) {
+      metricasService.incrementarDonadoresErrores();
+      throw new RuntimeException(
+          "Faltan datos obligatorios del donador: " + String.join(", ", faltantes));
+    }
+
+    if (donadorDTO.edad() <= 0) {
+      metricasService.incrementarDonadoresErrores();
+      throw new RuntimeException("La edad del donador debe ser mayor a 0");
     }
 
     String id = donadorDTO.id();
@@ -142,6 +178,14 @@ public class Fachada implements FachadaDonadoresYEntidades {
     if (this.donadoresRepository.findById(id).isPresent()) {
       metricasService.incrementarDonadoresErrores();
       throw new DonadorYaExistenteException("Ya existe un donador con ese ID");
+    }
+
+    // El documento identifica a la persona: con dos altas, sus quejas se repartirían entre dos
+    // registros y ninguno llegaría al umbral de SOSPECHOSO.
+    if (this.donadoresRepository.existsByNroDocumento(donadorDTO.nroDocumento())) {
+      metricasService.incrementarDonadoresErrores();
+      throw new DonadorYaExistenteException(
+          "Ya existe un donador con el documento " + donadorDTO.nroDocumento());
     }
 
     DonadorDTO dtoConId =
@@ -186,8 +230,11 @@ public class Fachada implements FachadaDonadoresYEntidades {
       throw new DonadorNoEncontradoException("No existe un donador con ese ID");
     }
 
+    // Pasa por el dominio y no por el setter para que el cambio quede en el historial, igual que
+    // los automáticos por quejas; si no, un baneo manual no dejaba rastro de cuándo ocurrió.
+    // El pedido no trae motivo, así que se deja uno fijo que lo distingue de los automáticos.
     val donadorFinal = donadorOptional.get();
-    donadorFinal.setEstado(estado);
+    donadorFinal.modificarEstado(estado, "Cambio manual de estado");
 
     this.donadoresRepository.save(donadorFinal);
 
@@ -215,10 +262,19 @@ public class Fachada implements FachadaDonadoresYEntidades {
     return donadoresYEntidadesDataMapper.toDonadorDTO(donadorFinal);
   }
 
+  /**
+   * Se puede registrar una necesidad sin producto: sin el chequeo de null, una sola necesidad así
+   * hacía fallar con NPE la consulta entera que usa Logística para el matchmaking.
+   */
+  private static boolean esDelProducto(NecesidadMaterial necesidad, String productoSolicitadoID) {
+    return necesidad.getProductoSolicitadoID() != null
+        && necesidad.getProductoSolicitadoID().equals(productoSolicitadoID);
+  }
+
   @Override
   public List<NecesidadMaterialDTO> obtenerNecesidadesInsatisfechasDe(String productoSolicitadoID) {
     return this.necesidadesRepository.findAll().stream()
-            .filter(necesidad -> necesidad.getProductoSolicitadoID().equals(productoSolicitadoID))
+            .filter(necesidad -> esDelProducto(necesidad, productoSolicitadoID))
             .filter(necesidad -> !necesidad.estaSatisfecha())
             .map(donadoresYEntidadesDataMapper::toNecesidadMaterialDTO)
             .toList();
@@ -231,7 +287,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
   public List<NecesidadResponse> obtenerNecesidadesInsatisfechasDetalladasDe(
           String productoSolicitadoID) {
     return this.necesidadesRepository.findAll().stream()
-            .filter(necesidad -> necesidad.getProductoSolicitadoID().equals(productoSolicitadoID))
+            .filter(necesidad -> esDelProducto(necesidad, productoSolicitadoID))
             .filter(necesidad -> !necesidad.estaSatisfecha())
             .map(donadoresYEntidadesDataMapper::toNecesidadResponse)
             .toList();
@@ -339,23 +395,8 @@ public class Fachada implements FachadaDonadoresYEntidades {
     String misionActualID = null;
 
     if (this.fachadaIncentivos != null) {
-      try {
-        insigniasID =
-                this.fachadaIncentivos.getInsigniasDeDonador(donadorID).stream()
-                        .map(insignia -> insignia.id())
-                        .toList();
-      } catch (Exception ignored) {
-        insigniasID = List.of();
-      }
-
-      try {
-        MisionDTO mision = this.fachadaIncentivos.getMisionEnCursoDeDonador(donadorID);
-        if (mision != null) {
-          misionActualID = mision.id();
-        }
-      } catch (Exception ignored) {
-        misionActualID = null;
-      }
+      insigniasID = insigniasSegunIncentivos(donadorID);
+      misionActualID = misionSegunIncentivos(donadorID);
     }
 
     return new DonadorStatsDTO(
@@ -369,10 +410,60 @@ public class Fachada implements FachadaDonadoresYEntidades {
             insigniasID);
   }
 
+  // Las estadísticas tienen que salir aunque Incentivos esté caído: los datos del donador son
+  // nuestros y siguen valiendo. Pero el fallo no puede pasar en silencio, porque una lista de
+  // insignias vacía no se distingue de "todavía no ganó ninguna".
+
+  private List<String> insigniasSegunIncentivos(String donadorID) {
+    long inicio = System.nanoTime();
+    try {
+      List<InsigniaDTO> insignias = this.fachadaIncentivos.getInsigniasDeDonador(donadorID);
+      metricasService.registrarLlamadaSaliente(
+          "estadisticas_donador", "incentivos", "obtener_insignias", true,
+          System.nanoTime() - inicio);
+      return insignias == null ? List.of() : insignias.stream().map(InsigniaDTO::id).toList();
+    } catch (Exception e) {
+      metricasService.registrarLlamadaSaliente(
+          "estadisticas_donador", "incentivos", "obtener_insignias", false,
+          System.nanoTime() - inicio);
+      log.warn(
+          "[Donadores <- Incentivos] no se pudieron obtener las insignias (donadorID={}): {}",
+          donadorID,
+          e.getMessage());
+      return List.of();
+    }
+  }
+
+  private String misionSegunIncentivos(String donadorID) {
+    long inicio = System.nanoTime();
+    try {
+      MisionDTO mision = this.fachadaIncentivos.getMisionEnCursoDeDonador(donadorID);
+      metricasService.registrarLlamadaSaliente(
+          "estadisticas_donador", "incentivos", "obtener_mision", true,
+          System.nanoTime() - inicio);
+      return mision == null ? null : mision.id();
+    } catch (Exception e) {
+      metricasService.registrarLlamadaSaliente(
+          "estadisticas_donador", "incentivos", "obtener_mision", false,
+          System.nanoTime() - inicio);
+      log.warn(
+          "[Donadores <- Incentivos] no se pudo obtener la misión en curso (donadorID={}): {}",
+          donadorID,
+          e.getMessage());
+      return null;
+    }
+  }
+
   @Override
   public EntidadBeneficaDTO agregarEntidad(EntidadBeneficaDTO entidadBeneficaDTO) {
     if (entidadBeneficaDTO == null) {
       throw new RuntimeException("La entidad no puede ser null");
+    }
+
+    // Es el nombre con el que se reconoce a la entidad al elegir dónde colgar una necesidad: sin
+    // razón social queda un registro que nadie puede identificar.
+    if (estaVacio(entidadBeneficaDTO.razonSocial())) {
+      throw new RuntimeException("La razón social de la entidad es obligatoria");
     }
 
     String id = entidadBeneficaDTO.id();
@@ -409,6 +500,40 @@ public class Fachada implements FachadaDonadoresYEntidades {
     return donadoresYEntidadesDataMapper.toEntidadBeneficaDTO(entidadOptional.get());
   }
 
+  /**
+   * Corrobora con Donaciones que el producto exista, y si no, rechaza la operación.
+   *
+   * <p>Lo comparten el alta y la modificación de necesidades: si cada una tuviera su copia, la
+   * regla podría divergir y cambiar el producto sería una forma de saltearse la validación del
+   * alta. Guardado por null: con el constructor sin argumentos (tests de cátedra) no se valida.
+   *
+   * @param operacion la etiqueta con la que se cuenta la llamada saliente en las métricas
+   */
+  private void validarProductoEnDonaciones(String productoID, String operacion) {
+    if (this.fachadaDonaciones == null || productoID == null) {
+      return;
+    }
+    long inicioValidacion = System.nanoTime();
+    try {
+      log.info(
+          "[Donadores -> Donaciones] Validando producto de necesidad (productoID={})", productoID);
+      this.fachadaDonaciones.buscarProductoPorID(productoID);
+      metricasService.registrarLlamadaSaliente(
+          operacion, "donaciones", "validar_producto", true,
+          System.nanoTime() - inicioValidacion);
+      log.info("[Donadores <- Donaciones] producto valido (productoID={})", productoID);
+    } catch (Exception e) {
+      metricasService.registrarLlamadaSaliente(
+          operacion, "donaciones", "validar_producto", false,
+          System.nanoTime() - inicioValidacion);
+      metricasService.incrementarNecesidadesErrores();
+      log.warn(
+          "[Donadores] Necesidad rechazada: producto inexistente en Donaciones (productoID={})",
+          productoID);
+      throw new RuntimeException("El producto solicitado no existe en Donaciones: " + productoID);
+    }
+  }
+
   @Override
   public NecesidadMaterialDTO registrarNecesidad(NecesidadMaterialDTO necesidadMaterialDTO) {
     if (necesidadMaterialDTO == null) {
@@ -432,34 +557,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
           "No existe una entidad con ese ID: " + necesidadMaterialDTO.entidadID());
     }
 
-    // Entrega 4: corroborar con Donaciones que el producto solicitado exista.
-    // Guardado por null: con el constructor sin-args (tests de cátedra) no se valida.
-    if (this.fachadaDonaciones != null && necesidadMaterialDTO.productoSolicitadoID() != null) {
-      long inicioValidacion = System.nanoTime();
-      try {
-        log.info(
-            "[Donadores -> Donaciones] Validando producto de necesidad (productoID={})",
-            necesidadMaterialDTO.productoSolicitadoID());
-        this.fachadaDonaciones.buscarProductoPorID(necesidadMaterialDTO.productoSolicitadoID());
-        metricasService.registrarLlamadaSaliente(
-            "registrar_necesidad", "donaciones", "validar_producto", true,
-            System.nanoTime() - inicioValidacion);
-        log.info(
-            "[Donadores <- Donaciones] producto valido (productoID={})",
-            necesidadMaterialDTO.productoSolicitadoID());
-      } catch (Exception e) {
-        metricasService.registrarLlamadaSaliente(
-            "registrar_necesidad", "donaciones", "validar_producto", false,
-            System.nanoTime() - inicioValidacion);
-        metricasService.incrementarNecesidadesErrores();
-        log.warn(
-            "[Donadores] Necesidad rechazada: producto inexistente en Donaciones (productoID={})",
-            necesidadMaterialDTO.productoSolicitadoID());
-        throw new RuntimeException(
-            "El producto solicitado no existe en Donaciones: "
-                + necesidadMaterialDTO.productoSolicitadoID());
-      }
-    }
+    validarProductoEnDonaciones(necesidadMaterialDTO.productoSolicitadoID(), "registrar_necesidad");
 
     String id = necesidadMaterialDTO.id();
     if (id == null) {
@@ -487,37 +585,83 @@ public class Fachada implements FachadaDonadoresYEntidades {
     // Entrega 4: consultar stock en Logística y, si hay, asignar al momento (origen = Donadores).
     // Best-effort y guardado por null (no rompe la creación ni los tests de cátedra).
     if (this.logisticaStockClient != null && necesidadGuardada.getProductoSolicitadoID() != null) {
-      long inicioStock = System.nanoTime();
-      int stock =
-          logisticaStockClient.consultarStockDisponible(necesidadGuardada.getProductoSolicitadoID());
-      // el cliente devuelve 0 y loguea si Logística no responde, así que un 0 puede ser
-      // "no hay stock" o "no contestó"; para la métrica alcanza con que la llamada se hizo
-      metricasService.registrarLlamadaSaliente(
-          "registrar_necesidad", "logistica", "consultar_stock", true,
-          System.nanoTime() - inicioStock);
-
-      int aAsignar = Math.min(stock, necesidadGuardada.cantidadFaltante());
-      if (aAsignar > 0) {
-        long inicioAsignacion = System.nanoTime();
-        logisticaStockClient.solicitarAsignacion(
-            necesidadGuardada.getId(), necesidadGuardada.getProductoSolicitadoID(), aAsignar);
-        metricasService.registrarLlamadaSaliente(
-            "registrar_necesidad", "logistica", "solicitar_asignacion", true,
-            System.nanoTime() - inicioAsignacion);
-        try {
-          necesidadGuardada.registrarSatisfaccion(aAsignar);
-          this.necesidadesRepository.save(necesidadGuardada);
-          metricasService.incrementarNecesidadesSatisfechas();
-        } catch (RuntimeException e) {
-          log.warn(
-              "[Donadores] No se pudo registrar satisfacción local de la necesidad {}: {}",
-              necesidadGuardada.getId(),
-              e.getMessage());
-        }
-      }
+      asignarStockDisponible(necesidadGuardada);
     }
 
     return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidadGuardada);
+  }
+
+  /**
+   * Pide a Logística el stock que ya tenga del producto y lo da por cubierto en la necesidad.
+   *
+   * <p>La satisfacción local al crear la necesidad es a propósito: así se presentó en la Prueba 6
+   * de la Entrega 4 y así figura en el diagrama del flujo 5. Pero solo se registra lo que Logística
+   * confirmó; si no, cada módulo contaría una cantidad distinta para la misma necesidad. Cualquier
+   * falla deja la necesidad creada con 0 cubierto: el alta no depende de Logística.
+   */
+  private void asignarStockDisponible(NecesidadMaterial necesidad) {
+    String productoID = necesidad.getProductoSolicitadoID();
+
+    long inicioStock = System.nanoTime();
+    OptionalInt stock = logisticaStockClient.consultarStockDisponible(productoID);
+    metricasService.registrarLlamadaSaliente(
+        "registrar_necesidad", "logistica", "consultar_stock", stock.isPresent(),
+        System.nanoTime() - inicioStock);
+    if (stock.isEmpty()) {
+      log.warn(
+          "[Donadores] Necesidad {} creada sin asignar: Logística no informó el stock de {}",
+          necesidad.getId(),
+          productoID);
+      return;
+    }
+
+    int faltante = necesidad.cantidadFaltante();
+    int aAsignar = Math.min(stock.getAsInt(), faltante);
+    if (aAsignar <= 0) {
+      return;
+    }
+
+    // Una RECURRENTE no acepta asignación parcial. Si se pidiera igual, Logística apartaría esas
+    // unidades y después registrarSatisfaccion las rechazaría: quedaban asignadas de un lado y sin
+    // registrar del otro.
+    if (necesidad.getTipo() == TipoNecesidadMaterialEnum.RECURRENTE && aAsignar < faltante) {
+      log.info(
+          "[Donadores] Necesidad {} RECURRENTE sin asignar: el stock ({}) no cubre lo que falta ({})",
+          necesidad.getId(),
+          aAsignar,
+          faltante);
+      return;
+    }
+
+    long inicioAsignacion = System.nanoTime();
+    boolean confirmada =
+        logisticaStockClient.solicitarAsignacion(necesidad.getId(), productoID, aAsignar);
+    metricasService.registrarLlamadaSaliente(
+        "registrar_necesidad", "logistica", "solicitar_asignacion", confirmada,
+        System.nanoTime() - inicioAsignacion);
+    if (!confirmada) {
+      log.warn(
+          "[Donadores] Necesidad {} creada sin asignar: Logística no confirmó la asignación de {}"
+              + " unidades",
+          necesidad.getId(),
+          aAsignar);
+      return;
+    }
+
+    try {
+      necesidad.registrarSatisfaccion(aAsignar);
+      this.necesidadesRepository.save(necesidad);
+      metricasService.incrementarNecesidadesSatisfechas();
+    } catch (RuntimeException e) {
+      // No debería pasar con las reglas de arriba; si pasa, Logística ya apartó las unidades y
+      // hay que conciliarlo a mano, por eso el mensaje lo dice.
+      log.warn(
+          "[Donadores] Logística asignó {} unidades a la necesidad {} pero no se pudieron registrar"
+              + " localmente: {}",
+          aAsignar,
+          necesidad.getId(),
+          e.getMessage());
+    }
   }
 
   @Override
@@ -525,6 +669,23 @@ public class Fachada implements FachadaDonadoresYEntidades {
     if (quejaDTO == null) {
       throw new RuntimeException("La queja no puede ser null");
     }
+
+    // Una queja sin texto suma igual para el baneo, y nadie puede revisar después qué se reclamó.
+    if (estaVacio(quejaDTO.descripcion())) {
+      throw new RuntimeException("La queja tiene que tener una descripción");
+    }
+
+    // Se rechaza acá con un 400: si llegara al repositorio, el JPA revienta con un id nulo y el
+    // en memoria responde "donador inexistente", y ninguno de los dos dice qué estuvo mal.
+    if (estaVacio(quejaDTO.donadorID())) {
+      throw new RuntimeException("La queja tiene que indicar el donador (donadorID)");
+    }
+
+    // El donacionID no se corrobora contra Donaciones a propósito: Donaciones es quien llama a
+    // este endpoint y ya validó la donación; consultarlo de vuelta sería una dependencia circular.
+
+    // Sin fecha, la queja se registra el día en que llega.
+    LocalDate fecha = quejaDTO.fecha() != null ? quejaDTO.fecha() : LocalDate.now();
 
     String idGenerado = quejaDTO.id();
     if (idGenerado == null || idGenerado.isBlank()) {
@@ -545,7 +706,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
                     idQueja,
                     quejaDTO.donacionID(),
                     quejaDTO.donadorID(),
-                    quejaDTO.fecha(),
+                    fecha,
                     quejaDTO.descripcion());
 
     Queja queja = donadoresYEntidadesDataMapper.toQueja(dtoConId);
@@ -590,7 +751,38 @@ public class Fachada implements FachadaDonadoresYEntidades {
     if (necesidadOptional.isEmpty()) {
       throw new NoSuchElementException("No existe una necesidad con ese ID");
     }
+    if (dto == null) {
+      throw new RuntimeException("Los datos de la necesidad no pueden ser null");
+    }
     val necesidad = necesidadOptional.get();
+
+    // Todas las validaciones van antes de tocar la entidad: con el repositorio en memoria el
+    // objeto es el mismo que está guardado, y un rechazo a mitad de camino dejaría cambios a medias.
+    // Objetivo y producto se validan solo si cambian: el bot reenvía la necesidad completa al
+    // editar cualquier campo, y repetir lo que ya está guardado no tiene por qué fallar.
+    if (dto.cantidadObjetivo() != null
+        && !dto.cantidadObjetivo().equals(necesidad.getCantidadObjetivo())) {
+      if (dto.cantidadObjetivo() <= 0) {
+        metricasService.incrementarNecesidadesErrores();
+        throw new RuntimeException("La cantidad objetivo de la necesidad debe ser mayor a 0");
+      }
+      // Lo entregado no se puede deshacer: un objetivo por debajo dejaría la necesidad
+      // "satisfecha con sobrante", con más unidades cubiertas que pedidas. (Puede pasar igual
+      // por una entrega mayor a lo que faltaba, pero eso no lo tiene que provocar una edición.)
+      int cubierta = necesidad.getCantidadCubierta() != null ? necesidad.getCantidadCubierta() : 0;
+      if (dto.cantidadObjetivo() < cubierta) {
+        metricasService.incrementarNecesidadesErrores();
+        throw new RuntimeException(
+            "La cantidad objetivo (" + dto.cantidadObjetivo()
+                + ") no puede ser menor a lo ya cubierto (" + cubierta + ")");
+      }
+    }
+    // Para el producto además evita depender de que Donaciones esté despierto sin necesidad.
+    if (dto.productoSolicitadoID() != null
+        && !dto.productoSolicitadoID().equals(necesidad.getProductoSolicitadoID())) {
+      validarProductoEnDonaciones(dto.productoSolicitadoID(), "modificar_necesidad");
+    }
+
     if (dto.nivelDeUrgencia() != null) necesidad.setNivelDeUrgencia(dto.nivelDeUrgencia());
     if (dto.descripcion() != null) necesidad.setDescripcion(dto.descripcion());
     if (dto.cantidadObjetivo() != null) necesidad.setCantidadObjetivo(dto.cantidadObjetivo());

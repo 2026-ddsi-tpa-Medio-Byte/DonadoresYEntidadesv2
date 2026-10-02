@@ -85,6 +85,7 @@ public class NecesidadController {
     @Operation(summary = "Modificar necesidad por ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Necesidad actualizada"),
+            @ApiResponse(responseCode = "400", description = "Cantidad objetivo inválida o producto inexistente"),
             @ApiResponse(responseCode = "404", description = "Necesidad no encontrada")
     })
     @Tag(name = "Precondiciones")

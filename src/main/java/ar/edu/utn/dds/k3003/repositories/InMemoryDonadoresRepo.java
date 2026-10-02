@@ -44,4 +44,9 @@ public class InMemoryDonadoresRepo implements DonadoresRepository {
   public void deleteAll() {
     this.donadores.clear();
   }
+
+  public boolean existsByNroDocumento(String nroDocumento) {
+    return nroDocumento != null
+        && this.donadores.stream().anyMatch(d -> nroDocumento.equals(d.getNroDocumento()));
+  }
 }

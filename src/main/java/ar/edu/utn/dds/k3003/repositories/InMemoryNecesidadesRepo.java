@@ -3,6 +3,7 @@ package ar.edu.utn.dds.k3003.repositories;
 import ar.edu.utn.dds.k3003.model.NecesidadMaterial;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 public class InMemoryNecesidadesRepo implements NecesidadesRepository {
@@ -27,7 +28,8 @@ public class InMemoryNecesidadesRepo implements NecesidadesRepository {
     public NecesidadMaterial removeById(String id) {
         Optional<NecesidadMaterial> necesidad = this.findById(id);
         if (necesidad.isEmpty()) {
-            throw new RuntimeException("No existe una necesidad con ese ID");
+            // Mismo criterio que el repositorio JPA: termina en 404, no en 400.
+            throw new NoSuchElementException("No existe una necesidad con ese ID");
         }
         this.necesidades.remove(necesidad.get());
         return necesidad.get();

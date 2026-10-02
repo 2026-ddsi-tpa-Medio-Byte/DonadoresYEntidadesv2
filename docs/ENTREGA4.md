@@ -8,7 +8,7 @@ demás componentes.
 | Cambio | Detalle |
 |--------|---------|
 | Validación de producto en `registrarNecesidad` | Al crear una necesidad se corrobora contra **Donaciones** (`GET /productos/{id}`) que el producto solicitado exista. Si no existe, se rechaza la necesidad. |
-| Consulta de stock + auto-asignación | Tras crear la necesidad, se consulta a **Logística** el stock disponible del producto y, si hay, se solicita asignar `min(stock, faltante)` marcando el origen como `SOLICITUD_DONADORES` (para diferenciarlo del matchmaking, requerido por Incentivos). Best-effort. |
+| Consulta de stock + auto-asignación | Tras crear la necesidad, se consulta a **Logística** el stock disponible del producto y, si hay, se solicita asignar `min(stock, faltante)` marcando el origen como `SOLICITUD_DONADORES` (para diferenciarlo del matchmaking, requerido por Incentivos). La satisfacción local se registra **solo si Logística confirmó** la asignación (respondió 2xx). Una `RECURRENTE` no acepta asignación parcial: se pide solo si el stock cubre **todo** lo que falta; si no, queda en 0 y no se pide nada. Best-effort. |
 | Métrica nueva | `entidades.necesidades.errores` (necesidades rechazadas, p. ej. producto inexistente). |
 | Logs de trazabilidad | Llamadas salientes a Donaciones y Logística logueadas en consola (Render). |
 
@@ -17,7 +17,11 @@ Notas de diseño:
   inyectan con `@Autowired(required = false)` y están **guardadas por null**: con el constructor
   sin-args que usan los tests de cátedra, no se ejecutan, por lo que la suite de cátedra sigue 22/22.
 - La parte de stock es **best-effort** (try/catch + log): si Logística no responde, la necesidad se
-  crea igual. Esto desacopla la creación de necesidades de la disponibilidad de Logística.
+  crea igual, con 0 cubierto. Esto desacopla la creación de necesidades de la disponibilidad de
+  Logística.
+- Registrar la satisfacción sin la confirmación de Logística haría que cada módulo cuente una
+  cantidad distinta para la misma necesidad. Y pedir una asignación parcial para una `RECURRENTE`
+  dejaba unidades apartadas en Logística que después `registrarSatisfaccion` rechazaba.
 
 ## 2. Flujo: crear una necesidad (Entrega 4)
 
@@ -37,9 +41,14 @@ sequenceDiagram
         DE->>DE: persistir necesidad
         DE->>LOG: GET /stock/{productoID}
         LOG-->>DE: { disponible: N }
-        opt N > 0
+        opt N > 0 (una RECURRENTE, solo si N cubre todo lo que falta)
             DE->>LOG: POST /asignaciones/solicitud (origen=SOLICITUD_DONADORES)
-            DE->>DE: registrar satisfacción local (min(N, faltante))
+            alt Logística confirmó (2xx)
+                LOG-->>DE: 2xx
+                DE->>DE: registrar satisfacción local (min(N, faltante))
+            else no confirmó o no respondió
+                DE->>DE: no registra nada, queda en 0
+            end
         end
         DE-->>API: 201 NecesidadMaterialDTO
     end
