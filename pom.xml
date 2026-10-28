@@ -41,6 +41,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
+    <!-- Publicación de eventos (Entrega 6, CQRS) en el RabbitMQ que comparten los módulos -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-amqp</artifactId>
+    </dependency>
     <dependency>
     <groupId>io.micrometer</groupId>
     <artifactId>micrometer-registry-datadog</artifactId>

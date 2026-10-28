@@ -7,7 +7,10 @@ import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonaciones;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaDonadoresYEntidades;
 import ar.edu.utn.dds.k3003.catedra.fachadas.FachadaIncentivos;
 import ar.edu.utn.dds.k3003.clients.LogisticaStockClient;
+import ar.edu.utn.dds.k3003.controllers.responses.CambioCategoriaResponse;
 import ar.edu.utn.dds.k3003.controllers.responses.NecesidadResponse;
+import ar.edu.utn.dds.k3003.eventos.EventoDonadores;
+import ar.edu.utn.dds.k3003.eventos.EventosDonadores;
 import ar.edu.utn.dds.k3003.exceptions.DonadorNoEncontradoException;
 import ar.edu.utn.dds.k3003.exceptions.DonadorYaExistenteException;
 import ar.edu.utn.dds.k3003.model.Donador;
@@ -21,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.OptionalInt;
+import java.util.function.Function;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -43,6 +47,13 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
   @Autowired(required = false)
   private LogisticaStockClient logisticaStockClient;
+
+  /**
+   * Los eventos para el modelo de lectura (Entrega 6). Guardado por null como los clientes de
+   * arriba: con el constructor sin argumentos de los tests de cátedra no se emite nada.
+   */
+  @Autowired(required = false)
+  private EventosDonadores eventos;
 
   private final DonadoresYEntidadesDataMapper donadoresYEntidadesDataMapper =
           new DonadoresYEntidadesDataMapper();
@@ -82,6 +93,78 @@ public class Fachada implements FachadaDonadoresYEntidades {
     this.entidadesRepository.deleteAll();
     this.donadoresRepository.deleteAll();
     log.info("[Donadores] Base de datos reseteada");
+    // Es el único método con transacción propia: el evento sale recién cuando se confirma el
+    // borrado. Si se deshiciera, Consultas no borraría un modelo que sigue vigente.
+    emitirEvento(EventosDonadores::moduloReseteado);
+  }
+
+  // ── Eventos (Entrega 6) ─────────────────────────────────────────────────────
+  // Publicar nunca hace fallar la operación: para cuando se emite, el cambio ya está guardado.
+  // PublicadorEventos ya no deja escapar nada; esto cubre lo que pueda fallar antes de llegar ahí,
+  // como armar los datos.
+
+  /** Inyección del catálogo de eventos, para los tests que arman la fachada a mano. */
+  public void setEventos(EventosDonadores eventos) {
+    this.eventos = eventos;
+  }
+
+  /** Arma el evento con el estado de este momento. Null si no hay eventos o si falló el armado. */
+  private EventoDonadores armarEvento(Function<EventosDonadores, EventoDonadores> armado) {
+    if (this.eventos == null) {
+      return null;
+    }
+    try {
+      return armado.apply(this.eventos);
+    } catch (RuntimeException e) {
+      metricasService.registrarEventoFallido(null);
+      log.warn("[Donadores] No se pudo armar un evento para Consultas: {}", e.toString());
+      return null;
+    }
+  }
+
+  private void publicarEvento(EventoDonadores evento) {
+    if (evento == null) {
+      return;
+    }
+    try {
+      this.eventos.emitir(evento);
+    } catch (RuntimeException e) {
+      metricasService.registrarEventoFallido(evento.sobre().tipo());
+      log.warn(
+          "[Donadores] No se pudo emitir {} de {}: {}",
+          evento.sobre().tipo(),
+          evento.sobre().entidadId(),
+          e.toString());
+    }
+  }
+
+  private void emitirEvento(Function<EventosDonadores, EventoDonadores> armado) {
+    publicarEvento(armarEvento(armado));
+  }
+
+  /**
+   * El estado actual de todo el módulo como eventos, para {@code POST /admin/republicar-eventos}.
+   *
+   * <p>Con los tipos de modificación y no de alta: para Consultas son lo mismo (un upsert), y así se
+   * lee lo que es, una resincronización. Las quejas van al final, después de sus donadores.
+   */
+  public List<EventoDonadores> eventosDelEstadoActual() {
+    if (this.eventos == null) {
+      return List.of();
+    }
+    List<Donador> donadores = this.donadoresRepository.findAll();
+    List<EventoDonadores> resultado = new ArrayList<>();
+    donadores.forEach(d -> resultado.add(this.eventos.donadorModificado(d)));
+    this.entidadesRepository.findAll()
+        .forEach(e -> resultado.add(this.eventos.entidadModificada(e)));
+    this.necesidadesRepository.findAll()
+        .forEach(n -> resultado.add(this.eventos.necesidadModificada(n)));
+    donadores.stream()
+        .map(Donador::getQuejas)
+        .filter(java.util.Objects::nonNull)
+        .flatMap(List::stream)
+        .forEach(q -> resultado.add(this.eventos.quejaRegistrada(q)));
+    return resultado;
   }
 
   // ── Generación de IDs ───────────────────────────────────────────────────────
@@ -203,6 +286,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val donador = donadoresYEntidadesDataMapper.toDonador(dtoConId);
     val donadorGuardado = this.donadoresRepository.save(donador);
     metricasService.incrementarDonadoresRegistrados();
+    emitirEvento(e -> e.donadorCreado(donadorGuardado));
     return donadoresYEntidadesDataMapper.toDonadorDTO(donadorGuardado);
   }
 
@@ -237,6 +321,8 @@ public class Fachada implements FachadaDonadoresYEntidades {
     donadorFinal.modificarEstado(estado, "Cambio manual de estado");
 
     this.donadoresRepository.save(donadorFinal);
+    // Siempre, aunque el estado sea el mismo: el dominio también lo registra como un cambio.
+    emitirEvento(e -> e.donadorModificado(donadorFinal));
 
     return donadoresYEntidadesDataMapper.toDonadorDTO(donadorFinal);
   }
@@ -254,12 +340,30 @@ public class Fachada implements FachadaDonadoresYEntidades {
       throw new DonadorNoEncontradoException("No existe un donador con ese ID");
     }
 
+    // Es lo que llama Incentivos con su PATCH al completar una misión. Pasa por el dominio para que
+    // el cambio quede en el historial de categorías, que pide la ficha del donador (consulta 1).
     val donadorFinal = donadorOptional.get();
-    donadorFinal.setCategoria(categoria);
+    boolean cambio = donadorFinal.modificarCategoria(categoria);
 
     this.donadoresRepository.save(donadorFinal);
+    // La categoría la publica Donadores aunque la cambie Incentivos: es el dueño del dato. Si no
+    // cambió, no hay nada que contar.
+    if (cambio) {
+      emitirEvento(e -> e.donadorModificado(donadorFinal));
+    }
 
     return donadoresYEntidadesDataMapper.toDonadorDTO(donadorFinal);
+  }
+
+  /** El historial de categorías del donador, de la más vieja a la actual. */
+  public List<CambioCategoriaResponse> historialCategoriasDe(String donadorID) {
+    val donadorOptional = this.donadoresRepository.findById(donadorID);
+
+    if (donadorOptional.isEmpty()) {
+      throw new DonadorNoEncontradoException("No existe un donador con ese ID");
+    }
+
+    return donadoresYEntidadesDataMapper.toHistorialCategorias(donadorOptional.get());
   }
 
   /**
@@ -365,6 +469,8 @@ public class Fachada implements FachadaDonadoresYEntidades {
   public NecesidadMaterialDTO satisfacerNecesidad(String necesidadID, Integer cantidad)throws NoSuchElementException {
     Object candado = candadosPorNecesidad.computeIfAbsent(necesidadID, id -> new Object());
 
+    EventoDonadores evento;
+    NecesidadMaterialDTO resultado;
     synchronized (candado) {
       val necesidadOptional = this.necesidadesRepository.findById(necesidadID);
 
@@ -377,8 +483,16 @@ public class Fachada implements FachadaDonadoresYEntidades {
 
       this.necesidadesRepository.save(necesidad);
       metricasService.incrementarNecesidadesSatisfechas();
-      return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);
+      // El evento se arma acá adentro: con el candado tomado, la cantidadCubierta es la que dejó
+      // esta entrega y no una posterior, y la hora del evento sigue el mismo orden que las entregas.
+      evento = armarEvento(e -> e.necesidadModificada(necesidad));
+      resultado = donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);
     }
+    // Y se publica afuera: sin transacción, el listener corre en este mismo hilo, y adentro del
+    // bloque la espera de RabbitMQ (hasta el timeout de conexión si está caído) frenaría a todas las
+    // entregas de esta necesidad. Afuera no cambia lo que se publica, que ya quedó armado.
+    publicarEvento(evento);
+    return resultado;
   }
 
   @Override
@@ -486,6 +600,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val entidad = donadoresYEntidadesDataMapper.toEntidadBenefica(dtoConId);
     val entidadGuardada = this.entidadesRepository.save(entidad);
     metricasService.incrementarEntidadesRegistradas();
+    emitirEvento(e -> e.entidadCreada(entidadGuardada));
     return donadoresYEntidadesDataMapper.toEntidadBeneficaDTO(entidadGuardada);
   }
 
@@ -582,10 +697,23 @@ public class Fachada implements FachadaDonadoresYEntidades {
     val necesidadGuardada = this.necesidadesRepository.save(necesidad);
     metricasService.incrementarNecesidadesRegistradas();
 
-    // Entrega 4: consultar stock en Logística y, si hay, asignar al momento (origen = Donadores).
-    // Best-effort y guardado por null (no rompe la creación ni los tests de cátedra).
-    if (this.logisticaStockClient != null && necesidadGuardada.getProductoSolicitadoID() != null) {
-      asignarStockDisponible(necesidadGuardada);
+    try {
+      // Entrega 4: consultar stock en Logística y, si hay, asignar al momento (origen = Donadores).
+      // Best-effort y guardado por null (no rompe la creación ni los tests de cátedra).
+      if (this.logisticaStockClient != null
+          && necesidadGuardada.getProductoSolicitadoID() != null) {
+        asignarStockDisponible(necesidadGuardada);
+      }
+    } finally {
+      // Un solo NECESIDAD_REGISTRADA, con la cubierta final, y no uno en 0 seguido de un
+      // NECESIDAD_MODIFICADA: el alta y la asignación del stock son una sola operación (Prueba 6,
+      // "la necesidad se crea ya cubierta"), y el modelo de lectura no tiene por qué mostrar un 0/20
+      // que nunca fue el resultado de nada. Se relee de la base porque asignarStockDisponible puede
+      // haber registrado la satisfacción en el objeto sin llegar a guardarla, y el contrato no deja
+      // publicar lo que no se guardó. En el finally para que ni una falla inesperada en el paso
+      // best-effort se lleve el evento de un alta que ya está guardada.
+      emitirEvento(e -> e.necesidadRegistrada(
+          this.necesidadesRepository.findById(necesidadGuardada.getId()).orElse(necesidadGuardada)));
     }
 
     return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidadGuardada);
@@ -723,6 +851,11 @@ public class Fachada implements FachadaDonadoresYEntidades {
     this.donadoresRepository.save(donador);
 
     metricasService.incrementarQuejasRegistradas();
+    // Dos eventos: la queja es un objeto propio en el modelo de lectura, y además le cambia al
+    // donador la cantidad de quejas y quizás el estado (SOSPECHOSO con la quinta, BANEADO con la
+    // décima).
+    emitirEvento(e -> e.quejaRegistrada(queja));
+    emitirEvento(e -> e.donadorModificado(donador));
     return donadoresYEntidadesDataMapper.toQuejaDTO(queja);
   }
 
@@ -743,7 +876,9 @@ public class Fachada implements FachadaDonadoresYEntidades {
   // (con cantidadActual), que es lo que consume Logística para el matchmaking.
 
   public void eliminarNecesidad(String necesidadID) {
+    // Si no existe, removeById lanza y no se publica nada: no hay qué borrar en Consultas.
     this.necesidadesRepository.removeById(necesidadID);
+    emitirEvento(e -> e.necesidadEliminada(necesidadID));
   }
 
   public NecesidadMaterialDTO modificarNecesidad(String necesidadID, NecesidadMaterialDTO dto) {
@@ -791,6 +926,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     }
     if (dto.tipo() != null) necesidad.setTipo(dto.tipo());
     this.necesidadesRepository.save(necesidad);
+    emitirEvento(e -> e.necesidadModificada(necesidad));
     return donadoresYEntidadesDataMapper.toNecesidadMaterialDTO(necesidad);
   }
 
@@ -805,6 +941,7 @@ public class Fachada implements FachadaDonadoresYEntidades {
     if (dto.telefono() != null) entidad.setTelefono(dto.telefono());
     if (dto.correo() != null) entidad.setCorreo(dto.correo());
     this.entidadesRepository.save(entidad);
+    emitirEvento(e -> e.entidadModificada(entidad));
     return donadoresYEntidadesDataMapper.toEntidadBeneficaDTO(entidad);
   }
 }

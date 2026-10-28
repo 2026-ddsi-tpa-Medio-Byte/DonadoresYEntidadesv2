@@ -7,6 +7,7 @@ import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.EstadoDonadorEnum;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.QuejaDTO;
 import ar.edu.utn.dds.k3003.controllers.requests.CategoriaDonadorRequest;
 import ar.edu.utn.dds.k3003.controllers.requests.EstadoDonadorRequest;
+import ar.edu.utn.dds.k3003.controllers.responses.CambioCategoriaResponse;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -85,6 +86,20 @@ public class DonadorController {
           @PathVariable String id,
           @RequestBody CategoriaDonadorRequest request) {
     return ResponseEntity.ok(fachada.modifcarCategoria(id, request.categoria()));
+  }
+
+  @Operation(
+          summary = "Obtener el historial de categorías del donador",
+          description = "De la más vieja a la actual, con la fecha desde la que la tiene, en UTC. "
+                  + "Un donador dado de alta antes de la Entrega 6 lo tiene vacío hasta su primer cambio.")
+  @ApiResponses({
+          @ApiResponse(responseCode = "200", description = "Historial de categorías"),
+          @ApiResponse(responseCode = "404", description = "Donador no encontrado")
+  })
+  @Tag(name = "Consultas")
+  @GetMapping("/{id}/categorias")
+  public ResponseEntity<List<CambioCategoriaResponse>> historialCategorias(@PathVariable String id) {
+    return ResponseEntity.ok(fachada.historialCategoriasDe(id));
   }
 
   @Operation(summary = "Verificar si un donador puede donar")

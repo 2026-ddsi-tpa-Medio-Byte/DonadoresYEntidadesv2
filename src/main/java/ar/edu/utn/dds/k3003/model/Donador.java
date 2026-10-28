@@ -3,15 +3,22 @@ package ar.edu.utn.dds.k3003.model;
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.EstadoDonadorEnum;
 import lombok.NoArgsConstructor;
 import jakarta.persistence.*;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 
 @Entity
 @Table(name = "donadores")
 @NoArgsConstructor
 public class Donador {
+
+  /** La que recibe un donador si el alta no trae otra. */
+  public static final String CATEGORIA_INICIAL = "Colaborador";
 
   @Id
   private String id;
@@ -34,6 +41,14 @@ public class Donador {
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
   private List<CambioEstadoDonador> cambiosEstado;
 
+  // Con columna en la tabla hija y no con tabla intermedia: es una relación uno a muchos y no
+  // hace falta una tercera tabla. El orden lo fija la base, porque una lista sin orden puede volver
+  // mezclada y el historial dejaría de contar la secuencia real.
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+  @JoinColumn(name = "donador_id")
+  @OrderBy("desde ASC, id ASC")
+  private List<CambioCategoriaDonador> historialCategorias;
+
   public Donador(
           String id,
           String nombre,
@@ -42,6 +57,24 @@ public class Donador {
           String email,
           String nroDocumento,
           String domicilio) {
+    this(id, nombre, apellido, edad, email, nroDocumento, domicilio, CATEGORIA_INICIAL);
+  }
+
+  /**
+   * Alta con la categoría con la que entra el donador.
+   *
+   * <p>La categoría inicial se recibe acá y no se pisa después con el setter: si no, el historial
+   * arrancaría con "Colaborador" aunque el donador nunca lo haya sido.
+   */
+  public Donador(
+          String id,
+          String nombre,
+          String apellido,
+          Integer edad,
+          String email,
+          String nroDocumento,
+          String domicilio,
+          String categoria) {
 
     this.id = id;
     this.nombre = nombre;
@@ -51,9 +84,10 @@ public class Donador {
     this.nroDocumento = nroDocumento;
     this.domicilio = domicilio;
     this.estado = EstadoDonadorEnum.VERIFICADO;
-    this.categoria = "Colaborador";
+    this.categoria = categoria != null ? categoria : CATEGORIA_INICIAL;
     this.quejas = new ArrayList<>();
     this.cambiosEstado = new ArrayList<>();
+    this.historialCategorias = new ArrayList<>();
 
     this.cambiosEstado.add(
             new CambioEstadoDonador(
@@ -61,6 +95,12 @@ public class Donador {
                     LocalDate.now(),
                     this.estado,
                     "Alta de donador"));
+    this.historialCategorias.add(new CambioCategoriaDonador(this.categoria, ahora()));
+  }
+
+  /** Milisegundos: es lo que guarda la base y lo que muestran los eventos, así no difieren. */
+  private static Instant ahora() {
+    return Instant.now().truncatedTo(ChronoUnit.MILLIS);
   }
 
 
@@ -107,8 +147,38 @@ public class Donador {
             new CambioEstadoDonador(null, LocalDate.now(), nuevoEstado, motivo));
   }
 
-  public void modificarCategoria(String categoria) {
-    this.categoria = categoria;
+  /**
+   * Cambia la categoría y deja el cambio en el historial.
+   *
+   * <p>Si es la misma que ya tiene, no se registra nada: Incentivos puede mandar el PATCH con la
+   * categoría vigente, y una entrada repetida haría parecer que la ganó dos veces.
+   *
+   * @return si la categoría cambió
+   */
+  public boolean modificarCategoria(String nuevaCategoria) {
+    if (Objects.equals(this.categoria, nuevaCategoria)) {
+      return false;
+    }
+    this.categoria = nuevaCategoria;
+    historial().add(new CambioCategoriaDonador(nuevaCategoria, ahora()));
+    return true;
+  }
+
+  /**
+   * Las categorías que tuvo, de la más vieja a la actual.
+   *
+   * <p>Un donador dado de alta antes de la Entrega 6 lo tiene vacío hasta su primer cambio: de lo
+   * anterior no quedó registro y no se inventa una fecha.
+   */
+  public List<CambioCategoriaDonador> getHistorialCategorias() {
+    return Collections.unmodifiableList(historial());
+  }
+
+  private List<CambioCategoriaDonador> historial() {
+    if (this.historialCategorias == null) {
+      this.historialCategorias = new ArrayList<>();
+    }
+    return this.historialCategorias;
   }
 
   /*
@@ -209,7 +279,8 @@ public class Donador {
     return categoria;
   }
 
+  /** Pasa por el dominio para que ningún cambio de categoría quede fuera del historial. */
   public void setCategoria(String categoria) {
-    this.categoria = categoria;
+    modificarCategoria(categoria);
   }
 }

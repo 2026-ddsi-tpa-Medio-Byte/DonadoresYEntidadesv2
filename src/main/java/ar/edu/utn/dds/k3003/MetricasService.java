@@ -105,4 +105,29 @@ public class MetricasService {
         .register(registry)
         .record(nanos, TimeUnit.NANOSECONDS);
   }
+
+  // ── Eventos hacia Consultas (Entrega 6) ───────────────────────────────────
+  //
+  // Publicar nunca hace fallar una operación, así que un RabbitMQ caído no se ve en ningún
+  // código HTTP. Este contador es la única forma de notarlo: los fallidos son cambios que el modelo
+  // de lectura no se enteró, y se recuperan con POST /admin/republicar-eventos.
+
+  /** Un evento que RabbitMQ aceptó. */
+  public void registrarEventoPublicado(String tipo) {
+    contarEvento("eventos.publicados", "Eventos publicados en RabbitMQ", tipo);
+  }
+
+  /** Un evento que no se pudo armar o publicar. */
+  public void registrarEventoFallido(String tipo) {
+    contarEvento("eventos.fallidos", "Eventos que no se pudieron publicar en RabbitMQ", tipo);
+  }
+
+  private void contarEvento(String nombre, String descripcion, String tipo) {
+    Counter.builder(nombre)
+        .description(descripcion)
+        .tag("modulo", "donadores-y-entidades")
+        .tag("tipo", tipo == null ? "desconocido" : tipo)
+        .register(registry)
+        .increment();
+  }
 }

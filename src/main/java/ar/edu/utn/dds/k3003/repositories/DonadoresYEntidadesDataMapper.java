@@ -1,8 +1,11 @@
 package ar.edu.utn.dds.k3003.repositories;
 
 import ar.edu.utn.dds.k3003.catedra.dtos.donadoresYEntidades.*;
+import ar.edu.utn.dds.k3003.controllers.responses.CambioCategoriaResponse;
 import ar.edu.utn.dds.k3003.controllers.responses.NecesidadResponse;
+import ar.edu.utn.dds.k3003.eventos.FechasUtc;
 import ar.edu.utn.dds.k3003.model.Donador;
+import java.util.List;
 import ar.edu.utn.dds.k3003.model.EntidadBenefica;
 import ar.edu.utn.dds.k3003.model.NecesidadMaterial;
 import ar.edu.utn.dds.k3003.model.Queja;
@@ -28,8 +31,9 @@ public class DonadoresYEntidadesDataMapper {
             dto.estado() != null ? dto.estado() : EstadoDonadorEnum.VERIFICADO;
 
     String categoria =
-            dto.categoria() != null ? dto.categoria() : "Colaborador";
+            dto.categoria() != null ? dto.categoria() : Donador.CATEGORIA_INICIAL;
 
+    // La categoría va en el constructor para que sea la primera del historial.
     Donador donador = new Donador(
             dto.id(),
             dto.nombre(),
@@ -37,12 +41,19 @@ public class DonadoresYEntidadesDataMapper {
             dto.edad(),
             dto.email(),
             dto.nroDocumento(),
-            dto.domicilio());
+            dto.domicilio(),
+            categoria);
 
     donador.setEstado(estado);
-    donador.setCategoria(categoria);
 
     return donador;
+  }
+
+  public List<CambioCategoriaResponse> toHistorialCategorias(Donador donador) {
+    return donador.getHistorialCategorias().stream()
+            .map(cambio -> new CambioCategoriaResponse(
+                    cambio.getCategoria(), FechasUtc.formatear(cambio.getDesde())))
+            .toList();
   }
   public QuejaDTO toQuejaDTO(Queja queja) {
     return new QuejaDTO(

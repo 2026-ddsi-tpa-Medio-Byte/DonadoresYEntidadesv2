@@ -32,6 +32,76 @@ También es el que decide si un donador puede donar: acumula las quejas y de ah�
 `VERIFICADO` → `SOSPECHOSO` (5 quejas) → `BANEADO` (10 quejas). Donaciones consulta eso antes de
 aceptar una donación.
 
+## Historial de categorías
+
+La ficha del donador (consulta 1 de la Entrega 6) pide la categoría actual **y el historial**.
+Cada cambio queda en `CambioCategoriaDonador` (`{ categoria, desde }`, tabla
+`cambios_categoria_donador`), en cascada desde `Donador`, igual que `CambioEstadoDonador`.
+
+- El alta registra la categoría inicial (la del DTO, o `Colaborador`). Por eso la categoría se pasa
+  en el constructor y no con el setter después: el historial no puede arrancar en `Colaborador` si
+  el donador nunca lo fue.
+- `modifcarCategoria`, que es lo que usa Incentivos con su PATCH, pasa por
+  `Donador.modificarCategoria`. Si la categoría es la misma, no agrega entrada ni publica evento.
+  `setCategoria` también pasa por ahí, así que no hay forma de saltear el historial.
+- `desde` es un `Instant` en milisegundos, no un día: dos misiones el mismo día dejan dos entradas.
+- Los donadores dados de alta antes de la Entrega 6 tienen el historial vacío hasta su primer
+  cambio. No se inventa una fecha para lo anterior.
+- `DonadorDTO` es de cátedra y no se tocó: el historial sale en `GET /donadores/{id}/categorias`
+  (tag `Consultas`) y en los eventos del donador.
+
+## Eventos para el Servicio de Consultas (Entrega 6, CQRS)
+
+El contrato está en `TP DDSI/guias-entrega-6/CONTRATO-EVENTOS.md`. Todo vive en `eventos/`:
+`EventosDonadores` arma cada evento con el estado del momento y `PublicadorEventos` lo manda al
+exchange `donatrack.eventos` (topic, ya creado por Logística). **El módulo solo publica**: no
+declara colas ni el exchange.
+
+| `tipo` | routing key | se emite en |
+|---|---|---|
+| `DONADOR_CREADO` | `donadores.donador.creado` | `agregarDonador` |
+| `DONADOR_MODIFICADO` | `donadores.donador.modificado` | `modificarEstado`, `modifcarCategoria` (si cambió), `agregarQueja` |
+| `QUEJA_REGISTRADA` | `donadores.queja.registrada` | `agregarQueja` (antes que el `DONADOR_MODIFICADO`) |
+| `ENTIDAD_CREADA` / `ENTIDAD_MODIFICADA` | `donadores.entidad.creada` / `.modificada` | `agregarEntidad` / `editarEntidad` |
+| `NECESIDAD_REGISTRADA` | `donadores.necesidad.registrada` | `registrarNecesidad` |
+| `NECESIDAD_MODIFICADA` | `donadores.necesidad.modificada` | `modificarNecesidad`, `satisfacerNecesidad` |
+| `NECESIDAD_ELIMINADA` | `donadores.necesidad.eliminada` | `eliminarNecesidad` (`datos: { id }`) |
+| `MODULO_RESETEADO` | `donadores.modulo.reseteado` | `resetBaseDeDatos` (`entidadId: "*"`, `datos: {}`) |
+
+- **`datos` va sin email, documento, domicilio ni edad**, y la entidad solo con `id` y
+  `razonSocial`: son records propios (`DatosEvento`), no los DTO de cátedra.
+- **Fechas:** todo en UTC con milisegundos y `Z`, de ancho fijo (`FechasUtc`). La fecha de la queja
+  es un `LocalDate`: sale como el comienzo de ese día en Argentina, en UTC (el 26/10 es
+  `2026-10-26T03:00:00.000Z`), así el día no cambia ni leído en UTC ni en hora local.
+- **`ocurridoEn` es estrictamente creciente** dentro del módulo: si el reloj no avanzó desde el
+  evento anterior, se le suma 1 ms. Consultas solo pisa con un evento más nuevo, y un empate podía
+  dejarle una versión vieja.
+- **Después del commit:** `@TransactionalEventListener(AFTER_COMMIT, fallbackExecution = true)`.
+  Solo `resetBaseDeDatos` tiene transacción propia; en el resto cada `save` ya confirmó cuando se
+  emite, y el listener corre en el mismo hilo.
+- **Publicar nunca hace fallar la operación:** WARN en el log y `eventos.fallidos` (tag `tipo`);
+  los que salen bien suman a `eventos.publicados`. La salud de RabbitMQ está apagada
+  (`management.health.rabbit.enabled=false`) para que un broker caído no ponga DOWN al módulo, y
+  la conexión espera como mucho 3 s.
+- **`satisfacerNecesidad`:** el evento se **arma dentro** del candado (lleva la `cantidadCubierta`
+  que dejó esa entrega, y la hora sigue el orden de las entregas) y se **publica afuera**, para que
+  la espera de RabbitMQ no frene a las otras entregas de la misma necesidad. Hay tests de las dos
+  cosas.
+- **Satisfacción por stock al crear:** sale **un solo** `NECESIDAD_REGISTRADA`, ya con la cubierta
+  final, en vez de uno en 0 y un `NECESIDAD_MODIFICADA`. Se relee de la base antes de armarlo (no
+  se publica lo que no se guardó) y va en un `finally`, para que una falla en el paso de Logística
+  no se lleve el evento de un alta que ya está guardada.
+
+**`RABBITMQ_URL`** (variable de entorno de Render, `amqps://usuario:password@host/vhost`, la misma
+de Logística) se mapea a `spring.rabbitmq.addresses`. Sin ella el publicador queda deshabilitado:
+lo avisa una vez al arrancar y no intenta conectar. `application-test.properties` la vacía a
+propósito, para que ningún test publique en el exchange real aunque la máquina la tenga.
+
+**`POST /admin/republicar-eventos`** vuelve a publicar todos los donadores, entidades y necesidades
+(`*_MODIFICADO` / `*_MODIFICADA`) y todas las quejas (`QUEJA_REGISTRADA`), con `ocurridoEn` =
+ahora. Responde `{"publicados": N, "fallidos": F}`; sin `RABBITMQ_URL`, 503 con el motivo. Es la
+carga inicial de Mongo y la forma de resincronizar.
+
 ## Cuidado con la concurrencia
 
 `satisfacerNecesidad` está **serializado por ID de necesidad**. Sin eso, dos entregas
@@ -44,8 +114,8 @@ que lo cubre y falla si se saca el candado.
 
 ## Dependencias hacia afuera
 
-`FachadaDonaciones` y `LogisticaStockClient` se inyectan con `@Autowired(required = false)` y
-están **guardadas por null**: con el constructor sin argumentos que usan los tests de cátedra no
+`FachadaDonaciones`, `LogisticaStockClient` y `EventosDonadores` se inyectan con
+`@Autowired(required = false)` y están **guardadas por null**: con el constructor sin argumentos que usan los tests de cátedra no
 se ejecutan, y por eso esa suite sigue pasando.
 
 La consulta de stock es *best-effort*: si Logística no responde, la necesidad se crea igual.
@@ -63,6 +133,8 @@ Fachada.java                    lógica de negocio
 controllers/                    DonadorController, EntidadController,
                                 NecesidadController, AdminController
 clients/LogisticaStockClient    consulta de stock y solicitud de asignación
+eventos/EventosDonadores        catálogo: arma cada evento con el estado del momento
+eventos/PublicadorEventos       lo manda a RabbitMQ después del commit, nunca lanza
 logging/DatadogLogAppender      envía logs a Datadog en lotes, nunca bloquea
 logging/TrazabilidadFilter      pone traceId y requestId en el MDC
 config/OpenApiConfig            agrupa el Swagger por propósito
@@ -79,5 +151,5 @@ endpoint existe para que Logística consulte las insatisfechas de un producto.
 mvn test
 ```
 
-145 tests, 0 fallos. Corren 115: los 30 saltados son los tests de cátedra de los otros tres
-módulos, que se desactivan solos con `@EnabledIf`.
+204 tests, 0 fallos. Corren 174: los 30 saltados son los tests de cátedra de los otros tres
+módulos, que se desactivan solos con `@EnabledIf`. Cátedra `DonadoresYEntidadesTest`: 22/22.
